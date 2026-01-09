@@ -245,3 +245,19 @@ class ItemRepository:
             return BaseRepository.exists_by_field(DatabaseConstants.TABLE_ITEMS, "id", item_id)
         except Exception as e:
             raise RuntimeError(str(e))
+        
+    @staticmethod
+    def get_by_serial_number(serial_number: str) -> Optional[Dict[str, Any]]:
+        try:
+            DatabaseUtils.validate_string(serial_number, "serial_number")
+            
+            query = """
+                SELECT 
+                    id, item_code, serial_number, name, category_id, unit_id, 
+                    owner_user_id, min_stock, description, image_url, active
+                FROM items
+                WHERE serial_number = %s
+                """
+            return fetch_one(query, (serial_number.strip(),))
+        except Exception as e:
+            raise RuntimeError(str(e))

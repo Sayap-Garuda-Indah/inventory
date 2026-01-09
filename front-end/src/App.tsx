@@ -15,15 +15,27 @@ import CategoryPage from './components/CategoryPage';
 import UnitPage from './components/UnitPage';
 import TransactionsPage from './components/TransactionsPage';
 import TransactionFormPage from './components/TransactionFormPage';
+import AuditSessionsPage from './components/AuditSessionsPage';
+import AuditSessionDetailPage from './components/AuditSessionDetailPage';
+import AuditScanPage from './components/AuditScanPage';
+import AuditReportPage from './components/AuditReportPage';
 
-function PrivateRoute({ children }: { children: React.ReactNode }) {
+function PrivateRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
     const { user, isLoading } = useAuth();
 
     if (isLoading) {
         return <div>Loading...</div>;
     }
 
-    return user ? <Layout>{children}</Layout> : <Navigate to="/login" />;
+    if (!user) {
+        return <Navigate to="/login" />;
+    }
+
+    if (allowedRoles && !allowedRoles.includes(user.role)) {
+        return <Navigate to="/dashboard" />;
+    }
+
+    return <Layout>{children}</Layout>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
@@ -183,6 +195,70 @@ function AppRoutes() {
                     </PrivateRoute>
                 }
             />
+
+            <Route
+                path="/audit-sessions"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
+                        <AuditSessionsPage />
+                    </PrivateRoute>
+                }
+            />
+
+            <Route
+                path="/audit-sessions/:sessionId"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
+                        <AuditSessionDetailPage />
+                    </PrivateRoute>
+                }
+            />
+
+            <Route
+                path="/audit-sessions/:sessionId/scan"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
+                        <AuditScanPage />
+                    </PrivateRoute>
+                }
+            />
+
+            <Route
+                path="/audit"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
+                        <AuditSessionsPage />
+                    </PrivateRoute>
+                }
+            />
+
+            <Route
+                path="/audit/:sessionId"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
+                        <AuditReportPage />
+                    </PrivateRoute>
+                }
+            />
+
+            <Route
+                path="/audit/:sessionId/scan"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
+                        <AuditScanPage />
+                    </PrivateRoute>
+                }
+            />
+
+            <Route
+                path="/audit/:sessionId/report"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
+                        <AuditReportPage />
+                    </PrivateRoute>
+                }
+            />
+
             <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>
     );

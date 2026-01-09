@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
     BarChart3,
     Grid,
@@ -61,6 +61,7 @@ const iconMap: Record<string, IconType> = {
     'bi-clock': Clock,
     'bi-exclamation-circle': AlertCircle,
     'bi-check-circle': CheckCircle,
+    'bi-clipboard-check': CheckCircle,
     'bi-chevron-down': ChevronDown,
     'bi-chevron-right': ChevronRight,
     'bi-menu': Menu,

@@ -12,6 +12,7 @@
   "dependencies": {
     "@azure/msal-browser": "^4.25.1",
     "@azure/msal-react": "^3.0.20",
+    "@zxing/browser": "^0.1.5",
     "axios": "^1.13.0",
     "bootstrap": "^5.3.8",
     "jspdf": "^4.0.0",

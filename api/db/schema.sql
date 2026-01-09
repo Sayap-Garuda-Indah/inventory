@@ -107,12 +107,16 @@ CREATE TABLE attachments (
 CREATE TABLE audit_log (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   actor_user_id BIGINT NOT NULL,
-  action VARCHAR(80) NOT NULL,
+  action ENUM('AUDIT_SESSION_CREATE', 'AUDIT_SCAN', 'AUDIT_SESSION_CLOSE') NOT NULL,
   entity_type VARCHAR(40) NOT NULL,
   entity_id BIGINT,
+  session_id BIGINT NULL,
+  ip_address VARCHAR(45) NULL,
+  user_agent VARCHAR(255) NULL,
   payload_json JSON,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_audit_entity (entity_type, entity_id),
+  INDEX idx_audit_session (session_id),
   CONSTRAINT fk_audit_user FOREIGN KEY (actor_user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
@@ -134,3 +138,55 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Insert default settings
 INSERT INTO settings (id) VALUES (1)
 ON DUPLICATE KEY UPDATE id=id;
+
+CREATE TABLE audit_sessions (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  location_id BIGINT NOT NULL,
+  status ENUM('OPEN','CLOSED','CANCELLED') NOT NULL DEFAULT 'OPEN',
+  started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  started_by BIGINT NOT NULL,
+  closed_at TIMESTAMP NULL,
+  closed_by BIGINT NULL,
+  note VARCHAR(255),
+
+  -- summary fields (optional but useful for fast reporting)
+  scanned_count INT NOT NULL DEFAULT 0,
+  expected_count INT NOT NULL DEFAULT 0,
+  missing_count INT NOT NULL DEFAULT 0,
+  unexpected_count INT NOT NULL DEFAULT 0,
+  unknown_count INT NOT NULL DEFAULT 0,
+
+  CONSTRAINT fk_audit_sess_loc FOREIGN KEY (location_id) REFERENCES locations(id),
+  CONSTRAINT fk_audit_sess_started_by FOREIGN KEY (started_by) REFERENCES users(id),
+  CONSTRAINT fk_audit_sess_closed_by FOREIGN KEY (closed_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_audit_sessions_location_status ON audit_sessions(location_id, status);
+
+CREATE TABLE audit_scans (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  session_id BIGINT NOT NULL,
+  scanned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  scanned_by BIGINT NOT NULL,
+
+  -- QR payload captured as-is for troubleshooting
+  scanned_code VARCHAR(64) NOT NULL,
+
+  -- resolved item if found
+  item_id BIGINT NULL,
+
+  -- audit context
+  location_id BIGINT NOT NULL,
+
+  result ENUM('FOUND','UNKNOWN','INACTIVE','WRONG_LOCATION','DUPLICATE') NOT NULL DEFAULT 'FOUND',
+  note VARCHAR(255),
+
+  CONSTRAINT fk_audit_scan_session FOREIGN KEY (session_id) REFERENCES audit_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_audit_scan_user FOREIGN KEY (scanned_by) REFERENCES users(id),
+  CONSTRAINT fk_audit_scan_item FOREIGN KEY (item_id) REFERENCES items(id),
+  CONSTRAINT fk_audit_scan_loc FOREIGN KEY (location_id) REFERENCES locations(id)
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_audit_scans_session ON audit_scans(session_id);
+CREATE INDEX idx_audit_scans_item ON audit_scans(item_id);
+CREATE INDEX idx_audit_scans_code ON audit_scans(scanned_code);
