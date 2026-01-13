@@ -147,7 +147,7 @@ class StockLevelsRepository:
                         i.name,
                         i.active
                     FROM stock_levels sl
-                    JOIN items i ON sl.items_id = i.id
+                    JOIN items i ON sl.item_id = i.id
                     WHERE sl.location_id = %s AND sl.qty_on_hand > 0
                     """
             params = (location_id,)

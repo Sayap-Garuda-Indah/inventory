@@ -146,6 +146,10 @@ class AuditService:
             
             parsed = AuditService._parse_scanned_code(data.scanned_code)
             item = None
+            if parsed.get('item_code'):
+                item = ItemRepository.get_by_item_code(parsed['item_code'])
+            if not item and parsed.get('serial_number'):
+                item = ItemRepository.get_by_serial_number(parsed['serial_number'])
 
             result = 'UNKNOWN'
             item_id = None

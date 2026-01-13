@@ -58,6 +58,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
     };
 
+    const buildNetworkError = () => {
+        return `Unable to reach API at ${API_BASE_URL}. Please check the server is running and accessible.`;
+    };
+
     const login = async (email: string, password: string) => {
         try {
             const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -82,7 +86,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             await fetchUserInfo(accessToken);
         } catch (error) {
             console.error('Login failed:', error);
-            throw error;
+            if (error instanceof TypeError || (error instanceof Error && error.message === 'Failed to fetch')) {
+                throw new Error(buildNetworkError());
+            }
+            if (error instanceof Error) {
+                throw error;
+            }
+            throw new Error('Login failed. Please try again.');
         }
     };
 
@@ -111,7 +121,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             await login(email, password);
         } catch (error) {
             console.error('Registration failed:', error);
-            throw error;
+            if (error instanceof TypeError || (error instanceof Error && error.message === 'Failed to fetch')) {
+                throw new Error(buildNetworkError());
+            }
+            if (error instanceof Error) {
+                throw error;
+            }
+            throw new Error('Registration failed. Please try again.');
         }
     };
 

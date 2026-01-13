@@ -83,6 +83,23 @@ function AuditScanPage() {
         };
     }, []);
 
+    const normalizeScannedCode = (value: string) => {
+        const trimmed = value.trim();
+        if (!trimmed) return '';
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === 'object') {
+                const itemCode = typeof parsed.item_code === 'string' ? parsed.item_code.trim() : '';
+                const serialNumber = typeof parsed.serial_number === 'string' ? parsed.serial_number.trim() : '';
+                if (itemCode) return itemCode;
+                if (serialNumber) return serialNumber;
+            }
+        } catch {
+            // ignore JSON parse errors
+        }
+        return trimmed.slice(0, 64);
+    };
+
     const fetchSession = async () => {
         if (!token || !sessionId) return;
         setIsLoading(true);
@@ -119,6 +136,8 @@ function AuditScanPage() {
     const handleSubmitScan = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!token || !sessionId || !scannedCode.trim()) return;
+        const normalizedCode = normalizeScannedCode(scannedCode);
+        if (!normalizedCode) return;
 
         setIsSubmitting(true);
         setError(null);
@@ -131,7 +150,7 @@ function AuditScanPage() {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ scanned_code: scannedCode.trim(), note: note.trim() || null }),
+                body: JSON.stringify({ scanned_code: normalizedCode, note: note.trim() || null }),
             });
             if (!res.ok) throw new Error('Scan failed');
 
@@ -158,6 +177,7 @@ function AuditScanPage() {
                 streamRef.current = stream;
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
+                    videoRef.current.muted = true;
                     await videoRef.current.play();
                 }
                 setCameraActive(true);
@@ -414,11 +434,15 @@ function AuditScanPage() {
                                     Upload QR image
                                 </label>
                             </div>
-                            {cameraActive && (
-                                <div className="md:col-span-2">
-                                    <video ref={videoRef} className="w-full rounded-lg border border-gray-200" />
-                                </div>
-                            )}
+                            <div className={`md:col-span-2 ${cameraActive ? '' : 'hidden'}`}>
+                                <video
+                                    ref={videoRef}
+                                    className="w-full rounded-lg border border-gray-200"
+                                    playsInline
+                                    autoPlay
+                                    muted
+                                />
+                            </div>
                         </form>
                     </CardBody>
                 </Card>

@@ -139,11 +139,15 @@ function AuditSessionDetailPage() {
             const res = await fetch(`${API_BASE_URL}/audit/sessions/${sessionId}/reconciliation`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
-            if (!res.ok) throw new Error('Failed to load reconciliation');
+            if (!res.ok) {
+                const payload = await res.json().catch(() => ({}));
+                const detail = payload.detail || `Failed to load reconciliation (${res.status})`;
+                throw new Error(detail);
+            }
             const data: AuditReconciliationResponse = await res.json();
             setReconciliation(data);
-        } catch {
-            setError('Failed to load reconciliation');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load reconciliation');
         }
     };
 
@@ -236,6 +240,18 @@ function AuditSessionDetailPage() {
                         </p>
                     </div>
                     <div className="flex gap-2">
+                        <Button
+                            variant="outline-secondary"
+                            onClick={() => {
+                                if (window.history.length > 1) {
+                                    navigate(-1);
+                                } else {
+                                    navigate('/audit');
+                                }
+                            }}
+                        >
+                            Back
+                        </Button>
                         <Badge variant={statusBadge(session.status)}>{session.status}</Badge>
                         {session.status === 'OPEN' && (
                             <>

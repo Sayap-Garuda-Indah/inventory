@@ -197,6 +197,42 @@ function AppRoutes() {
             />
 
             <Route
+                path="/audit"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
+                        <AuditSessionsPage />
+                    </PrivateRoute>
+                }
+            />
+
+            <Route
+                path="/audit/:sessionId"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
+                        <AuditSessionDetailPage />
+                    </PrivateRoute>
+                }
+            />
+
+            <Route
+                path="/audit/:sessionId/scan"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
+                        <AuditScanPage />
+                    </PrivateRoute>
+                }
+            />
+
+            <Route
+                path="/audit/:sessionId/report"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
+                        <AuditReportPage />
+                    </PrivateRoute>
+                }
+            />
+
+            <Route
                 path="/audit-sessions"
                 element={
                     <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
@@ -224,28 +260,10 @@ function AppRoutes() {
             />
 
             <Route
-                path="/audit"
-                element={
-                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
-                        <AuditSessionsPage />
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path="/audit/:sessionId"
+                path="/audit-sessions/:sessionId/report"
                 element={
                     <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
                         <AuditReportPage />
-                    </PrivateRoute>
-                }
-            />
-
-            <Route
-                path="/audit/:sessionId/scan"
-                element={
-                    <PrivateRoute allowedRoles={['ADMIN', 'AUDITOR']}>
-                        <AuditScanPage />
                     </PrivateRoute>
                 }
             />
