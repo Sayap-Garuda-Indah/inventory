@@ -15,7 +15,8 @@ from schemas.audit import (
     AuditScanResponse,
     AuditReconciliationResponse,
     AuditItemSummary,
-    AuditScanListResponse
+    AuditScanListResponse,
+    AuditSessionNotesUpdate
 )
 
 logger = get_logger(__name__)
@@ -171,7 +172,7 @@ class AuditService:
             scan = AuditScansRepository.create(
                 session_id=session_id,
                 scanned_by=user_id,
-                scanned_code=data.scanned_code.strip(),
+                scanned_code="",
                 item_id=item_id,
                 location_id=session['location_id'],
                 result=result,
@@ -207,7 +208,9 @@ class AuditService:
     @staticmethod
     def list_scans(
         session_id: int,
-        result: Optional[str] = None
+        result: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 50
     ) -> AuditScanListResponse:
         try:
             session = AuditSessionRepository.get_by_id(session_id)
@@ -217,10 +220,13 @@ class AuditService:
                     detail="Audit session not found"
                 )
             
-            scans = AuditScansRepository.list_by_session(session_id, result)
+            scans = AuditScansRepository.list_by_session(session_id, result, page, page_size)
+            total = AuditScansRepository.count_by_session(session_id)
             response = AuditScanListResponse(
                 scans=[AuditScanResponse.model_validate(s) for s in scans],
-                total=len(scans)
+                total=total,
+                page=page,
+                page_size=page_size
             )
             return response
         except HTTPException:
@@ -249,6 +255,17 @@ class AuditService:
             unexpected_ids = set(AuditScansRepository.list_distinct_item_ids_by_result(session_id, ['WRONG_LOCATION', 'INACTIVE']))
             missing_ids = [item_id for item_id in expected_by_id.keys() if item_id not in found_ids]
 
+            missing_notes = {
+                row["item_id"]: row.get("note")
+                for row in AuditScansRepository.list_notes_by_result(session_id, "MISSING")
+            }
+            unexpected_notes = {
+                row["item_id"]: row.get("note")
+                for row in AuditScansRepository.list_notes_by_result(session_id, "WRONG_LOCATION")
+            }
+            for row in AuditScansRepository.list_notes_by_result(session_id, "INACTIVE"):
+                unexpected_notes[row["item_id"]] = row.get("note")
+
             found = []
             for item_id in found_ids:
                 if item_id in expected_by_id:
@@ -258,7 +275,8 @@ class AuditService:
                         item_code=row['item_code'],
                         name=row['name'],
                         active=row['active'],
-                        qty_on_hand=float(row['qty_on_hand'])
+                        qty_on_hand=float(row['qty_on_hand']),
+                        note=None
                     ))
             
             missing = []
@@ -269,7 +287,8 @@ class AuditService:
                     item_code=row['item_code'],
                     name=row['name'],
                     active=row['active'],
-                    qty_on_hand=float(row['qty_on_hand'])
+                    qty_on_hand=float(row['qty_on_hand']),
+                    note=missing_notes.get(item_id)
                 ))
             
             unexpected = []
@@ -282,7 +301,8 @@ class AuditService:
                             item_code=item['item_code'],
                             name=item['name'],
                             active=item['active'],
-                            qty_on_hand=None
+                            qty_on_hand=None,
+                            note=unexpected_notes.get(item_id)
                         ))
 
             unknown_count = AuditScansRepository.count_unknown(session_id)
@@ -309,6 +329,48 @@ class AuditService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to reconcile audit session"
+            )
+
+    @staticmethod
+    def save_notes(session_id: int, payload: AuditSessionNotesUpdate, user_id: int) -> None:
+        try:
+            session = AuditSessionRepository.get_by_id(session_id)
+            if not session:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Audit session not found"
+                )
+
+            for note in payload.missing_notes:
+                AuditScansRepository.upsert_missing_note(
+                    session_id=session_id,
+                    item_id=note.item_id,
+                    location_id=session["location_id"],
+                    user_id=user_id,
+                    note=note.note
+                )
+
+            for note in payload.unexpected_notes:
+                AuditScansRepository.update_note_by_item_results(
+                    session_id=session_id,
+                    item_id=note.item_id,
+                    results=["WRONG_LOCATION", "INACTIVE"],
+                    note=note.note
+                )
+
+            for note in payload.unknown_notes:
+                AuditScansRepository.update_note_by_scan_id(
+                    session_id=session_id,
+                    scan_id=note.scan_id,
+                    note=note.note
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Failed to save audit notes", extra={"error": str(e)})
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save audit notes"
             )
     
     @staticmethod

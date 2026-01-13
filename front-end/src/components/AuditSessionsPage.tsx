@@ -111,7 +111,7 @@ function AuditSessionsPage() {
                 page: currentPage.toString(),
                 page_size: pageSize.toString(),
             });
-            if (statusFilter !== 'all') params.append('status', statusFilter);
+            if (statusFilter !== 'all') params.append('session_status', statusFilter);
             if (locationId) params.append('location_id', locationId);
 
             const res = await fetch(`${API_BASE_URL}/audit/sessions?${params}`, {

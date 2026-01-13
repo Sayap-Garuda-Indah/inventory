@@ -38,7 +38,7 @@ class AuditScanCreate(BaseModel):
 class AuditScanResponse(BaseModel):
     id: int = Field(..., description="Unique identifier of the audit scan")
     session_id: int = Field(..., description="ID of the audit session")
-    scanned_code: str = Field(..., description="The code of the item that was scanned")
+    scanned_code: Optional[str] = Field(None, description="The code of the item that was scanned")
     scanned_at: datetime = Field(..., description="Timestamp when the item was scanned")
     scanned_by: int = Field(..., description="User ID of the person who performed the scan")
     item_id: Optional[int] = Field(None, description="ID of the item if it exists in inventory")
@@ -49,6 +49,8 @@ class AuditScanResponse(BaseModel):
 class AuditScanListResponse(BaseModel):
     scans: List[AuditScanResponse]
     total: int
+    page: int
+    page_size: int
 
 class AuditItemSummary(BaseModel):
     item_id: int
@@ -56,6 +58,20 @@ class AuditItemSummary(BaseModel):
     name: str
     active: bool
     qty_on_hand: Optional[float] = None
+    note: Optional[str] = None
+
+class AuditItemNote(BaseModel):
+    item_id: int
+    note: Optional[str] = None
+
+class AuditScanNote(BaseModel):
+    scan_id: int
+    note: Optional[str] = None
+
+class AuditSessionNotesUpdate(BaseModel):
+    missing_notes: List[AuditItemNote] = []
+    unexpected_notes: List[AuditItemNote] = []
+    unknown_notes: List[AuditScanNote] = []
 
 class AuditReconciliationResponse(BaseModel):
     session_id: int = Field(..., description="ID of the audit session")

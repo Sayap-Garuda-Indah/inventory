@@ -34,7 +34,7 @@ interface AuditScanResponse {
     session_id: number;
     scanned_at: string;
     scanned_by: number;
-    scanned_code: string;
+    scanned_code?: string | null;
     item_id?: number | null;
     location_id: number;
     result: string;
@@ -60,7 +60,7 @@ function AuditScanPage() {
     const [cameraActive, setCameraActive] = useState(false);
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
-    const zxingReaderRef = useRef<{ reset: () => void } | null>(null);
+    const zxingReaderRef = useRef<any>(null);
 
     const isAuditor = user?.role === 'ADMIN' || user?.role === 'AUDITOR';
 
@@ -121,7 +121,7 @@ function AuditScanPage() {
     const fetchScans = async () => {
         if (!token || !sessionId) return;
         try {
-            const res = await fetch(`${API_BASE_URL}/audit/sessions/${sessionId}/scans`, {
+            const res = await fetch(`${API_BASE_URL}/audit/sessions/${sessionId}/scans?page=1&page_size=100`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) throw new Error('Failed to load scans');
@@ -469,7 +469,7 @@ function AuditScanPage() {
                                         {scanHistory.map((scan) => (
                                             <tr key={scan.id}>
                                                 <td className="text-sm">{new Date(scan.scanned_at).toLocaleString()}</td>
-                                                <td className="text-sm font-mono">{scan.scanned_code}</td>
+                                                <td className="text-sm font-mono">{scan.scanned_code || '-'}</td>
                                                 <td>
                                                     <Badge variant={statusBadge(scan.result)}>{scan.result}</Badge>
                                                 </td>

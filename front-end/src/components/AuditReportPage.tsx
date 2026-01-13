@@ -29,6 +29,7 @@ interface AuditItemSummary {
     name: string;
     active: boolean | number;
     qty_on_hand?: number | null;
+    note?: string | null;
 }
 
 interface AuditReconciliationResponse {
@@ -49,7 +50,7 @@ interface AuditScanResponse {
     session_id: number;
     scanned_at: string;
     scanned_by: number;
-    scanned_code: string;
+    scanned_code?: string | null;
     item_id?: number | null;
     location_id: number;
     result: string;
@@ -66,12 +67,10 @@ function AuditReportPage() {
     const [session, setSession] = useState<AuditSession | null>(null);
     const [reconciliation, setReconciliation] = useState<AuditReconciliationResponse | null>(null);
     const [scans, setScans] = useState<AuditScanResponse[]>([]);
-    const [notes, setNotes] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const isAuditor = user?.role === 'ADMIN' || user?.role === 'AUDITOR';
-    const notesKey = useMemo(() => `auditNotes:${sessionId}`, [sessionId]);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -84,20 +83,8 @@ function AuditReportPage() {
             fetchSession();
             fetchReconciliation();
             fetchScans();
-            loadNotes();
         }
     }, [isAuditor]);
-
-    const loadNotes = () => {
-        const stored = localStorage.getItem(notesKey);
-        if (stored) {
-            try {
-                setNotes(JSON.parse(stored));
-            } catch {
-                setNotes({});
-            }
-        }
-    };
 
     const fetchSession = async () => {
         if (!token || !sessionId) return;
@@ -138,7 +125,7 @@ function AuditReportPage() {
     const fetchScans = async () => {
         if (!token || !sessionId) return;
         try {
-            const res = await fetch(`${API_BASE_URL}/audit/sessions/${sessionId}/scans`, {
+            const res = await fetch(`${API_BASE_URL}/audit/sessions/${sessionId}/scans?page=1&page_size=200`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) throw new Error('Failed to load scans');
@@ -289,19 +276,16 @@ function AuditReportPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {reconciliation.missing.map((item) => {
-                                            const key = `missing:${item.item_id}`;
-                                            return (
-                                                <tr key={item.item_id}>
-                                                    <td>
-                                                        <div className="font-semibold">{item.name}</div>
-                                                        <div className="text-xs text-gray-500">{item.item_code}</div>
-                                                    </td>
-                                                    <td className="text-sm">{item.qty_on_hand ?? 0}</td>
-                                                    <td className="text-sm">{notes[key] || '-'}</td>
-                                                </tr>
-                                            );
-                                        })}
+                                        {reconciliation.missing.map((item) => (
+                                            <tr key={item.item_id}>
+                                                <td>
+                                                    <div className="font-semibold">{item.name}</div>
+                                                    <div className="text-xs text-gray-500">{item.item_code}</div>
+                                                </td>
+                                                <td className="text-sm">{item.qty_on_hand ?? 0}</td>
+                                                <td className="text-sm">{item.note || '-'}</td>
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             </div>
@@ -327,19 +311,16 @@ function AuditReportPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {reconciliation.unexpected.map((item) => {
-                                            const key = `unexpected:${item.item_id}`;
-                                            return (
-                                                <tr key={item.item_id}>
-                                                    <td>
-                                                        <div className="font-semibold">{item.name}</div>
-                                                        <div className="text-xs text-gray-500">{item.item_code}</div>
-                                                    </td>
-                                                    <td className="text-sm">{item.active ? 'Yes' : 'No'}</td>
-                                                    <td className="text-sm">{notes[key] || '-'}</td>
-                                                </tr>
-                                            );
-                                        })}
+                                        {reconciliation.unexpected.map((item) => (
+                                            <tr key={item.item_id}>
+                                                <td>
+                                                    <div className="font-semibold">{item.name}</div>
+                                                    <div className="text-xs text-gray-500">{item.item_code}</div>
+                                                </td>
+                                                <td className="text-sm">{item.active ? 'Yes' : 'No'}</td>
+                                                <td className="text-sm">{item.note || '-'}</td>
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             </div>
@@ -365,16 +346,13 @@ function AuditReportPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {unknownScans.map((scan) => {
-                                            const key = `unknown:${scan.scanned_code}`;
-                                            return (
-                                                <tr key={scan.id}>
-                                                    <td className="font-mono text-sm">{scan.scanned_code}</td>
-                                                    <td className="text-sm">{new Date(scan.scanned_at).toLocaleString()}</td>
-                                                    <td className="text-sm">{notes[key] || '-'}</td>
-                                                </tr>
-                                            );
-                                        })}
+                                        {unknownScans.map((scan) => (
+                                            <tr key={scan.id}>
+                                                <td className="font-mono text-sm">{scan.scanned_code || '-'}</td>
+                                                <td className="text-sm">{new Date(scan.scanned_at).toLocaleString()}</td>
+                                                <td className="text-sm">{scan.note || '-'}</td>
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             </div>

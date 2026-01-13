@@ -3,30 +3,30 @@
 ## 1. Code Architecture & Organization
 
 ### Missing Core Components
-- [x] ~~No Pydantic schemas for request/response validation in `schemas/`~~
-- [x] ~~Missing domain services - business logic is scattered in routers~~
-- [x] ~~No repository pattern - direct SQL queries in controllers~~
-- [x] ~~Incomplete error handling - minimal validation and error responses~~
+- [x] No Pydantic schemas for request/response validation in `schemas/`
+- [x] Missing domain services - business logic is scattered in routers
+- [x] No repository pattern - direct SQL queries in controllers
+- [x] Incomplete error handling - minimal validation and error responses
 
 ## 2. Database Layer Issues
 
 ### Current Problems
-- [x] ~~Mixed connection handling - both `db/pool.py` and `db/connection.py` exist~~
-- [x] ~~No transaction management for complex operations~~
-- [ ] SQL injection risk - while parameterized, could be improved with query builder
+- [x] Mixed connection handling - both `db/pool.py` and `db/connection.py` exist
+- [x] No transaction management for complex operations
+- [x] SQL injection risk - while parameterized, could be improved with query builder
 
 ## 3. Security & Authentication
 
 ### Current Issues
 - [ ] Hardcoded credentials in `.env` file
-- [x] ~~Missing input validation - direct dict usage in `app/routers/items.py`~~
+- [x] Missing input validation - direct dict usage in `app/routers/items.py`
 - [ ] CORS for internal network only
 
 ## 4. Configuration Management
 
 ### Issues
 - [ ] Sensitive data in version control - `.env` should be `.env.example`
-- [x] ~~Missing environment-specific configs~~
+- [x] Missing environment-specific configs
 - [ ] No secrets management
 
 ## 5. Error Handling & Logging
@@ -57,9 +57,9 @@
 ## 9. Database Schema Issues
 
 ### Problems in `inventory_ddl.sql`
-- [ ] Missing indexes for common queries
+- [x] Missing indexes for common queries
 - [x] ~~No data validation constraints~~
-- [ ] Missing audit timestamps on some tables
+- [x] Missing audit timestamps on some tables
 
 ## 10. Priority Implementation Order
 
@@ -79,7 +79,7 @@
 - [x] ~~Add monitoring and health checks~~
 
 ### Long-term (Month 2+)
-- [ ] Implement audit logging
+- [x] Implement audit logging
 - [ ] Add backup automation
 
 ---

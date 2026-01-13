@@ -169,8 +169,8 @@ CREATE TABLE audit_scans (
   scanned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   scanned_by BIGINT NOT NULL,
 
-  -- QR payload captured as-is for troubleshooting
-  scanned_code VARCHAR(64) NOT NULL,
+  -- QR payload not stored
+  scanned_code VARCHAR(64) NULL,
 
   -- resolved item if found
   item_id BIGINT NULL,
@@ -178,8 +178,8 @@ CREATE TABLE audit_scans (
   -- audit context
   location_id BIGINT NOT NULL,
 
-  result ENUM('FOUND','UNKNOWN','INACTIVE','WRONG_LOCATION','DUPLICATE') NOT NULL DEFAULT 'FOUND',
-  note VARCHAR(255),
+  result ENUM('FOUND','UNKNOWN','INACTIVE','WRONG_LOCATION','DUPLICATE','MISSING') NOT NULL DEFAULT 'FOUND',
+  note TEXT,
 
   CONSTRAINT fk_audit_scan_session FOREIGN KEY (session_id) REFERENCES audit_sessions(id) ON DELETE CASCADE,
   CONSTRAINT fk_audit_scan_user FOREIGN KEY (scanned_by) REFERENCES users(id),
@@ -189,4 +189,3 @@ CREATE TABLE audit_scans (
 
 CREATE INDEX idx_audit_scans_session ON audit_scans(session_id);
 CREATE INDEX idx_audit_scans_item ON audit_scans(item_id);
-CREATE INDEX idx_audit_scans_code ON audit_scans(scanned_code);

@@ -38,6 +38,7 @@ interface AuditItemSummary {
     name: string;
     active: boolean | number;
     qty_on_hand?: number | null;
+    note?: string | null;
 }
 
 interface AuditReconciliationResponse {
@@ -58,7 +59,7 @@ interface AuditScanResponse {
     session_id: number;
     scanned_at: string;
     scanned_by: number;
-    scanned_code: string;
+    scanned_code?: string | null;
     item_id?: number | null;
     location_id: number;
     result: string;
@@ -78,10 +79,11 @@ function AuditSessionDetailPage() {
     const [scanHistory, setScanHistory] = useState<AuditScanResponse[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isClosing, setIsClosing] = useState(false);
+    const [isSavingNotes, setIsSavingNotes] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
 
     const isAuditor = user?.role === 'ADMIN' || user?.role === 'AUDITOR';
-    const notesKey = useMemo(() => `auditNotes:${sessionId}`, [sessionId]);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -94,25 +96,11 @@ function AuditSessionDetailPage() {
             fetchSession();
             fetchReconciliation();
             fetchScans();
-            loadNotes();
         }
     }, [isAuditor]);
 
-    const loadNotes = () => {
-        const stored = localStorage.getItem(notesKey);
-        if (stored) {
-            try {
-                setNotes(JSON.parse(stored));
-            } catch {
-                setNotes({});
-            }
-        }
-    };
-
     const saveNote = (key: string, value: string) => {
-        const next = { ...notes, [key]: value };
-        setNotes(next);
-        localStorage.setItem(notesKey, JSON.stringify(next));
+        setNotes((prev) => ({ ...prev, [key]: value }));
     };
 
     const fetchSession = async () => {
@@ -154,7 +142,7 @@ function AuditSessionDetailPage() {
     const fetchScans = async () => {
         if (!token || !sessionId) return;
         try {
-            const res = await fetch(`${API_BASE_URL}/audit/sessions/${sessionId}/scans`, {
+            const res = await fetch(`${API_BASE_URL}/audit/sessions/${sessionId}/scans?page=1&page_size=100`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) throw new Error('Failed to load scans');
@@ -165,6 +153,26 @@ function AuditSessionDetailPage() {
             setError('Failed to load scan history');
         }
     };
+
+    useEffect(() => {
+        if (!reconciliation && scanHistory.length === 0) return;
+        setNotes((prev) => {
+            if (Object.keys(prev).length > 0) return prev;
+            const next: Record<string, string> = {};
+            reconciliation?.missing?.forEach((item) => {
+                if (item.note) next[`missing:${item.item_id}`] = item.note;
+            });
+            reconciliation?.unexpected?.forEach((item) => {
+                if (item.note) next[`unexpected:${item.item_id}`] = item.note;
+            });
+            scanHistory
+                .filter((scan) => scan.result === 'UNKNOWN')
+                .forEach((scan) => {
+                    if (scan.note) next[`unknown:${scan.id}`] = scan.note;
+                });
+            return next;
+        });
+    }, [reconciliation, scanHistory]);
 
     const handleCloseSession = async () => {
         if (!token || !sessionId) return;
@@ -184,6 +192,54 @@ function AuditSessionDetailPage() {
             setError('Failed to close audit session');
         } finally {
             setIsClosing(false);
+        }
+    };
+
+    const handleSaveNotes = async () => {
+        if (!token || !sessionId || !reconciliation) return;
+        setIsSavingNotes(true);
+        setError(null);
+        setSuccess(null);
+        try {
+            const missingNotes = reconciliation.missing.map((item) => ({
+                item_id: item.item_id,
+                note: (notes[`missing:${item.item_id}`] || '').trim() || null,
+            }));
+            const unexpectedNotes = reconciliation.unexpected.map((item) => ({
+                item_id: item.item_id,
+                note: (notes[`unexpected:${item.item_id}`] || '').trim() || null,
+            }));
+            const unknownNotes = scanHistory
+                .filter((scan) => scan.result === 'UNKNOWN')
+                .map((scan) => ({
+                    scan_id: scan.id,
+                    note: (notes[`unknown:${scan.id}`] || '').trim() || null,
+                }));
+
+            const res = await fetch(`${API_BASE_URL}/audit/sessions/${sessionId}/notes`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    missing_notes: missingNotes,
+                    unexpected_notes: unexpectedNotes,
+                    unknown_notes: unknownNotes,
+                }),
+            });
+            if (!res.ok) {
+                const payload = await res.json().catch(() => ({}));
+                const detail = payload.detail || `Failed to save notes (${res.status})`;
+                throw new Error(detail);
+            }
+            setSuccess('Audit notes saved.');
+            await fetchReconciliation();
+            await fetchScans();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to save notes');
+        } finally {
+            setIsSavingNotes(false);
         }
     };
 
@@ -239,7 +295,7 @@ function AuditSessionDetailPage() {
                             {session.location_name} ({session.location_code})
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <Button
                             variant="outline-secondary"
                             onClick={() => {
@@ -251,6 +307,13 @@ function AuditSessionDetailPage() {
                             }}
                         >
                             Back
+                        </Button>
+                        <Button
+                            variant="outline-primary"
+                            onClick={handleSaveNotes}
+                            isLoading={isSavingNotes}
+                        >
+                            Save Notes
                         </Button>
                         <Badge variant={statusBadge(session.status)}>{session.status}</Badge>
                         {session.status === 'OPEN' && (
@@ -277,6 +340,11 @@ function AuditSessionDetailPage() {
                 {error && (
                     <Alert variant="danger" dismissible onClose={() => setError(null)} className="mb-4">
                         {error}
+                    </Alert>
+                )}
+                {success && (
+                    <Alert variant="success" dismissible onClose={() => setSuccess(null)} className="mb-4">
+                        {success}
                     </Alert>
                 )}
 
@@ -422,7 +490,7 @@ function AuditSessionDetailPage() {
                                             const key = `unknown:${scan.scanned_code}`;
                                             return (
                                                 <tr key={scan.id}>
-                                                    <td className="font-mono text-sm">{scan.scanned_code}</td>
+                                                    <td className="font-mono text-sm">{scan.scanned_code || '-'}</td>
                                                     <td className="text-sm">
                                                         {new Date(scan.scanned_at).toLocaleString()}
                                                     </td>

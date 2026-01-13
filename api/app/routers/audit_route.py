@@ -10,7 +10,8 @@ from schemas.audit import (
     AuditScanCreate,
     AuditScanResponse,
     AuditReconciliationResponse,
-    AuditScanListResponse
+    AuditScanListResponse,
+    AuditSessionNotesUpdate
 )
 from domain.services.audit_service import AuditService
 
@@ -160,6 +161,8 @@ def create_scan(
 def list_scans(
     session_id: int = Path(..., gt=0, description="ID of the audit session"),
     result: Optional[str] = Query(None, description="Filter by scan result"),
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    page_size: int = Query(50, ge=1, le=100, description="Number of scans per page"),
     current_user=Depends(require_role(UserRole.ADMIN, UserRole.AUDITOR))
 ) -> AuditScanListResponse:
     try:
@@ -172,7 +175,7 @@ def list_scans(
             }
         )
 
-        return AuditService.list_scans(session_id, result)
+        return AuditService.list_scans(session_id, result, page, page_size)
     except HTTPException:
         raise
     except Exception as e:
@@ -210,6 +213,39 @@ def get_reconciliation(
     except Exception as e:
         logger.error(
             "Error in get_reconciliation.",
+            extra={
+                "error": str(e),
+                "session_id": session_id,
+                "requested_by": current_user
+            }
+        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+
+@router.post(
+    "/sessions/{session_id}/notes",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.AUDITOR))]
+)
+def save_notes(
+    payload: AuditSessionNotesUpdate,
+    session_id: int = Path(..., gt=0, description="ID of the audit session"),
+    current_user=Depends(require_role(UserRole.ADMIN, UserRole.AUDITOR))
+) -> None:
+    try:
+        logger.info(
+            "Audit notes update requested",
+            extra={
+                "requested_by": current_user,
+                "session_id": session_id
+            }
+        )
+
+        AuditService.save_notes(session_id, payload, current_user["id"])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error in save_notes.",
             extra={
                 "error": str(e),
                 "session_id": session_id,
