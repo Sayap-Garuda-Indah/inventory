@@ -95,6 +95,11 @@ function UserFormPage() {
             return;
         }
 
+        if (form.password && form.password.length < 8) {
+            setError('Password must be at least 8 characters long');
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
 
@@ -123,8 +128,18 @@ function UserFormPage() {
             );
 
             if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.detail || 'Failed to save user');
+                let errDetail = 'Failed to save user';
+                try {
+                    const err = await response.json();
+                    if (Array.isArray(err.detail)) {
+                        errDetail = err.detail.map((d: any) => d.msg).join(', ');
+                    } else if (typeof err.detail === 'string') {
+                        errDetail = err.detail;
+                    }
+                } catch {
+                    // Keep fallback message for non-JSON errors.
+                }
+                throw new Error(errDetail);
             }
 
             navigate('/users');

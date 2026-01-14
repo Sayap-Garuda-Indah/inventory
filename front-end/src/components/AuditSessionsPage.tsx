@@ -92,7 +92,7 @@ function AuditSessionsPage() {
     const fetchLocations = async () => {
         if (!token) return;
         try {
-            const res = await fetch(`${API_BASE_URL}/locations?page=1&page_size=200&active_only=1`, {
+            const res = await fetch(`${API_BASE_URL}/locations?page=1&page_size=100&active_only=1`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const data = await res.json();
