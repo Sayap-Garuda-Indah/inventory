@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict, Any
 from db.pool import fetch_all, fetch_one, execute
+from db.base import QueryBuilder, DatabaseUtils, BaseRepository
 from schemas.categories import CategoryCreate, CategoryUpdate
 
 class CategoryRepository:
@@ -10,14 +11,16 @@ class CategoryRepository:
         search: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         try:
-            where_conditions = []
+            conditions = []
             params = []
 
-            if search:
-                where_conditions.append("name LIKE %s")
-                params.append(f"%{search}%")
-        
-            where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+            search_term = DatabaseUtils.sanitize_search_term(search)
+            search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["name"])
+            if search_condition:
+                conditions.append(search_condition)
+                params.extend(search_params)
+
+            where_clause, params = QueryBuilder.build_where_clause(conditions, params)
             query = f"""
                 SELECT id, name
                 FROM categories
@@ -25,64 +28,46 @@ class CategoryRepository:
                 ORDER BY name
                 LIMIT %s OFFSET %s
                 """
-            
+
             params.extend([limit, offset])
 
             category_list = fetch_all(query, tuple(params))
             return category_list
         except Exception as e:
             raise RuntimeError({str(e)})
-        
+
     @staticmethod
     def get_by_id(category_id: int) -> Optional[Dict[str, Any]]:
         try:
-            if not isinstance(category_id, int) or category_id <= 0:
-                raise ValueError("Invalid category ID")
-            
+            DatabaseUtils.validate_id(category_id, "Category")
+
             query = """
                 SELECT id, name
                 FROM categories
                 WHERE id = %s
                 """
-            
+
             cat_id = fetch_one(query, (category_id,))
             return cat_id
         except Exception as e:
             raise RuntimeError({str(e)})
-        
+
     @staticmethod
     def exists_by_name(name: str) -> bool:
         try:
-            query = """
-                SELECT COUNT(1) as count
-                FROM categories
-                WHERE name = %s
-                """
-            
-            result = fetch_one(query, (name,))
-            if result is not None:
-                return result['count'] > 0
-            else:
-                return False
+            DatabaseUtils.validate_string(name, "name")
+            return BaseRepository.exists_by_field("categories", "name", name.strip())
         except Exception as e:
             raise RuntimeError({str(e)})
 
     @staticmethod
     def exists_by_id(category_id: int) -> bool:
         try:
-            query = """
-                SELECT COUNT(1) as count
-                FROM categories
-                WHERE id = %s
-                """
-            
-            result = fetch_one(query, (category_id,))
-            if result is not None:
-                return result['count'] > 0
-            else:
-                return False
+            DatabaseUtils.validate_id(category_id, "Category")
+            return BaseRepository.exists_by_field("categories", "id", category_id)
         except Exception as e:
             raise RuntimeError({str(e)})
+
 
     @staticmethod
     def create(category: CategoryCreate) -> int:
@@ -101,13 +86,12 @@ class CategoryRepository:
             return new_id['id']
         except Exception as e:
             raise RuntimeError({str(e)})
-        
+
     @staticmethod
     def update(category_id: int, category: CategoryUpdate) -> None:
         try:
-            if not isinstance(category_id, int) or category_id <= 0:
-                raise ValueError("Invalid category ID")
-            
+            DatabaseUtils.validate_id(category_id, "Category")
+
             query = """
                 UPDATE categories
                 SET name = %s
@@ -116,13 +100,12 @@ class CategoryRepository:
             execute(query, (category.name, category_id))
         except Exception as e:
             raise RuntimeError({str(e)})
-        
+
     @staticmethod
     def delete(category_id: int) -> bool:
         try:
-            if not isinstance(category_id, int) or category_id <= 0:
-                raise ValueError("Invalid category ID")
-            
+            DatabaseUtils.validate_id(category_id, "Category")
+
             query = "DELETE FROM categories WHERE id = %s"
             rows_affected = execute(query, (category_id,))
 

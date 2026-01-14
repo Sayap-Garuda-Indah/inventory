@@ -227,7 +227,7 @@ def get_issue_items_detailed(
 @router.post("/", response_model=IssueResponse, status_code=status.HTTP_201_CREATED)
 def create_issue(
     issue_data: IssueCreate,
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> IssueResponse:
     try:
         logger.info(
@@ -262,7 +262,7 @@ def create_issue(
 def update_issue(
     issue_data: IssueUpdate,
     issue_id: int = Path(..., gt=0, description="The ID of the issue to update"),
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> IssueResponse:
     try:
         logger.info(
@@ -302,7 +302,7 @@ def update_issue(
 @router.delete("/{issue_id}", status_code=status.HTTP_200_OK)
 def delete_issue(
     issue_id: int = Path(..., gt=0, description="The ID of the issue to delete"),
-    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+    current_user: dict = Depends(require_role(UserRole.ADMIN))
 ) -> dict:
     try:
         logger.info(
@@ -341,7 +341,7 @@ def delete_issue(
 @router.patch("/{issue_ud}/approve", response_model=IssueResponse)
 def approve_issue(
     issue_id: int = Path(..., gt=0, description="The ID of the issue to approve"),
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> IssueResponse:
     try:
         logger.info(
@@ -372,7 +372,7 @@ def approve_issue(
 @router.patch("/{issue_id}/status", response_model=IssueResponse)
 def change_issue_status(issue_id: int = Path(..., gt=0, description="The ID of the issue to change status"),
                         new_status: str = Query(..., description="The new status for the issue"),
-                        current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+                        current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
                         ) -> IssueResponse:
     try:
         logger.info(

@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
-from db.pool import fetch_all, fetch_one, execute
+from db.pool import fetch_all, fetch_one, execute, get_db_cursor
 from schemas.issue_items import IssueItemCreate, IssueItemUpdate, IssueItemResponse, IssueItemListResponse, IssueItemBulkCreate
 
 class IssueItemRepository:
@@ -31,7 +31,7 @@ class IssueItemRepository:
                     ii.issue_id,
                     ii.item_id,
                     ii.qty,
-                    i.sku AS item_sku,
+                    i.item_code AS item_code,
                     i.name AS item_name
                 FROM issue_items ii
                 LEFT JOIN items i ON ii.item_id = i.id
@@ -43,7 +43,7 @@ class IssueItemRepository:
 
             return fetch_all(query, tuple(params))
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
     
     @staticmethod
     def get_by_id(issue_item_id: int) -> Optional[Dict[str, Any]]:
@@ -57,7 +57,7 @@ class IssueItemRepository:
                     ii.issue_id,
                     ii.item_id,
                     ii.qty,
-                    i.sku AS item_sku,
+                    i.item_code AS item_code,
                     i.name AS item_name
                 FROM issue_items ii
                 LEFT JOIN items i ON ii.item_id = i.id
@@ -66,12 +66,12 @@ class IssueItemRepository:
             
             return fetch_one(query, (issue_item_id,))
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def get_by_issue_id(issue_id: int) -> List[Dict[str, Any]]:
         try:
-            if not isinstance(issue_id, int) and issue_id <= 0:
+            if not isinstance(issue_id, int) or issue_id <= 0:
                 raise ValueError("Invalid issue ID")
             
             query = """
@@ -80,7 +80,7 @@ class IssueItemRepository:
                     ii.issue_id,
                     ii.item_id,
                     ii.qty,
-                    i.sku as item_sku,
+                    i.item_code as item_code,
                     i.name as item_name,
                     i.unit_id,
                     u.symbol as unit_symbol
@@ -93,7 +93,7 @@ class IssueItemRepository:
 
             return fetch_all(query, (issue_id,))
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def create(issue_item_data: IssueItemCreate) -> Optional[Dict[str, Any]]:
@@ -102,21 +102,20 @@ class IssueItemRepository:
                 INSERT INTO issue_items (issue_id, item_id, qty)
                 VALUES (%s, %s, %s)
                 """
-            execute(query, (
-                issue_item_data.issue_id,
-                issue_item_data.item_id,
-                issue_item_data.qty
-            ))
+            with get_db_cursor(dictionary=False) as cursor:
+                cursor.execute(query, (
+                    issue_item_data.issue_id,
+                    issue_item_data.item_id,
+                    issue_item_data.qty
+                ))
+                last_id = cursor.lastrowid
 
-            last_id_query = "SELECT LAST_INSERT_ID() as id"
-            result = fetch_one(last_id_query)
-
-            if result and result['id']:
-                return IssueItemRepository.get_by_id(result['id'])
+            if last_id:
+                return IssueItemRepository.get_by_id(last_id)
             
             return None
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def create_bulk(issue_id: int, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -142,12 +141,12 @@ class IssueItemRepository:
 
             return []
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
     
     @staticmethod
     def update(issue_item_id: int, issue_item_data: IssueItemUpdate) -> Optional[Dict[str, Any]]:
         try:
-            if not isinstance(issue_item_id, int) or issue_item_id > 0:
+            if not isinstance(issue_item_id, int) or issue_item_id <= 0:
                 raise ValueError("Invalid issue item ID")
             
             if issue_item_data.qty is None:
@@ -166,7 +165,7 @@ class IssueItemRepository:
 
             return None
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def delete(issue_item_id: int) -> bool:
@@ -179,7 +178,7 @@ class IssueItemRepository:
 
             return rows_affected > 0
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
 
     @staticmethod
     def delete_by_issue_id(issue_id: int) -> bool:
@@ -192,7 +191,7 @@ class IssueItemRepository:
 
             return True
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
 
     @staticmethod
     def exists_by_id(issue_item_id: int) -> bool:
@@ -202,7 +201,7 @@ class IssueItemRepository:
 
             return IssueItemRepository.get_by_id(issue_item_id) is not None
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def exists_by_issue_and_item(issue_id: int, item_id: int) -> bool:
@@ -216,7 +215,7 @@ class IssueItemRepository:
 
             return result is not None and result.get('count', 0) > 0
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))
         
     @staticmethod
     def count(issue_id: Optional[int] = None, item_id: Optional[int] = None) -> int:
@@ -239,4 +238,4 @@ class IssueItemRepository:
 
             return result.get('count', 0) if result else 0
         except Exception as e:
-            raise RuntimeError({str(e)})
+            raise RuntimeError(str(e))

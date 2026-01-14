@@ -8,9 +8,8 @@ python -c "import bcrypt; print(bcrypt.hashpw('AdminPassword123!'.encode('utf-8'
 mysql -u inv -p@SgiInventory123 -D inventory
 
 -- Insert admin user
-INSERT INTO users (username, password_hash, name, email, role, active, created_at)
+INSERT INTO users (password_hash, name, email, role, active, created_at)
 VALUES (
-    'admin',
     '$2b$12$5NXL8ngtjCBP7mP.ouFfmeY4Qn/0e3lidEo9Dn9EV86veXo7Lz.Vy',  -- Replace with your hash
     'System Administrator',
     'admin@example.com',

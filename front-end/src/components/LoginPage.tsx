@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Container, Card, Form, Button, Alert } from 'react-bootstrap';
+import { Alert, Button, Card, CardBody, FormInput, Spinner } from './UI';
 
 function LoginPage() {
     const [email, setEmail] = useState('');
@@ -27,57 +27,69 @@ function LoginPage() {
     };
 
     return (
-        <div className="d-flex justify-content-center align-items-center min-vh-100 gradient-bg">
-            <Container className="w-100" style={{ maxWidth: '450px' }}>
-                <Card className="shadow-lg">
-                    <Card.Body className="p-5">
-                        <h1 className="h3 fw-bold mb-2 text-center">Inventory Management System</h1>
-                        <p className="text-center text-muted mb-4">Sign in to your account</p>
+        <div className="min-h-screen flex items-center justify-center bg-gray-100 relative overflow-hidden">
+            <div className="absolute -top-24 -left-24 w-72 h-72 bg-blue-200/40 rounded-full blur-3xl" />
+            <div className="absolute bottom-10 right-10 w-96 h-96 bg-blue-300/20 rounded-full blur-3xl" />
 
-                        {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
+            <div className="w-full max-w-md px-4 relative z-10">
+                <Card className="shadow-xl border border-gray-100">
+                    <CardBody className="p-8 sm:p-10">
+                        <div className="text-center mb-8">
+                            <h1 className="text-2xl font-bold text-gray-900 mb-2 tracking-tight">
+                                Inventory Management
+                                <br />
+                                System
+                            </h1>
+                            <p className="text-sm text-gray-500">Sign in to your account</p>
+                        </div>
 
-                        <Form onSubmit={handleSubmit}>
-                            <Form.Group className="mb-3">
-                                <Form.Label>Email</Form.Label>
-                                <Form.Control
-                                    type="email"
-                                    placeholder="you@example.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    disabled={isLoading}
-                                />
-                            </Form.Group>
+                        {error && (
+                            <Alert variant="danger" dismissible onClose={() => setError('')} className="mb-6">
+                                {error}
+                            </Alert>
+                        )}
 
-                            <Form.Group className="mb-3">
-                                <Form.Label>Password</Form.Label>
-                                <Form.Control
-                                    type="password"
-                                    placeholder="Enter your password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    minLength={8}
-                                    disabled={isLoading}
-                                />
-                            </Form.Group>
-
-                            <Button
-                                variant="primary"
-                                type="submit"
-                                className="w-100 gradient-bg border-0"
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            <FormInput
+                                label="Email"
+                                type="email"
+                                placeholder="you@example.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
                                 disabled={isLoading}
-                            >
-                                {isLoading ? 'Signing in...' : 'Sign In'}
+                            />
+                            <FormInput
+                                label="Password"
+                                type="password"
+                                placeholder="Enter your password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                minLength={8}
+                                disabled={isLoading}
+                            />
+                            <Button variant="primary" type="submit" className="w-full" disabled={isLoading}>
+                                {isLoading ? (
+                                    <span className="inline-flex items-center">
+                                        <Spinner size="sm" className="mr-2" />
+                                        Signing in...
+                                    </span>
+                                ) : (
+                                    'Sign In'
+                                )}
                             </Button>
-                        </Form>
+                        </form>
 
-                        <p className="text-center mt-4 text-muted">
-                            Don't have an account? <Link to="/register" className="text-decoration-none">Register here</Link>
+                        <p className="text-center mt-6 text-sm text-gray-500">
+                            Don't have an account?{' '}
+                            <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+                                Register here
+                            </Link>
                         </p>
-                    </Card.Body>
+                    </CardBody>
                 </Card>
-            </Container>
+            </div>
         </div>
     );
 }

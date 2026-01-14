@@ -1,7 +1,8 @@
-from typing import TypeVar, Type, Dict, Any, Optional, List
+from typing import TypeVar, Dict, Any, Optional, List
 from decimal import Decimal
 from datetime import datetime, date
-import json
+import re
+# import json
 
 T = TypeVar('T')
 
@@ -25,7 +26,7 @@ class DatabaseConstants:
     STATUS_DRAFT = "DRAFT"
     STATUS_APPROVED = "APPROVED"
     STATUS_ISSUED = "ISSUED"
-    STATUS_CANCELED = "CANCELED"
+    STATUS_CANCELED = "CANCELLED"
 
     # Transaction types
     TX_TYPE_IN = "IN"
@@ -224,9 +225,12 @@ class DatabaseUtils:
             return None
 
         # Escape special LIKE wildcards
-        sanitize = search.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        # sanitize = search.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
-        return sanitize.strip()
+        # Remove dangerous characters but keep spaces and alphanumeric
+        sanitized = re.sub(r'[^\w\s\-]', '', search.strip())
+
+        return sanitized if sanitized else None
     
 class BaseRepository:
     """

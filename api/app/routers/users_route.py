@@ -104,7 +104,32 @@ def create_user(
             detail=str(e)
         )
 
-
+@router.post("/bulk-register", response_model=list[UserResponse], dependencies=[Depends(require_role(UserRole.ADMIN))])
+def bulk_create_users(
+    users_data: list[UserCreate],
+    current_user=Depends(require_role(UserRole.ADMIN))
+) -> list[UserResponse]:
+    """
+    Create multiple users in bulk.
+    """
+    try:
+        logger.info(
+            "Bulk user creation requested",
+            extra={
+                "requested_by": current_user['id'],
+                "requestor_email": current_user['email'],
+                "number_of_users": len(users_data)
+            }
+        )
+        response = UserService.create_bulk_users(users_data)
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 @router.put("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def update_user(

@@ -1,93 +1,81 @@
-# Inventory Manager (Personal Use) — Requirements, Design & Server Setup
+# Inventory Manager (Internal Use) — Requirements, Design & Server Setup
 
-> Stack: **FastAPI (Python)** backend • **React Native** mobile app • **MySQL** DB • **LAN‑only access** on **Ubuntu Server 24.04**
+> Stack: **FastAPI (Python)** backend • **React (Vite)** web app • **MySQL** DB • **JWT auth**
 
 ---
 
 ## 1) Scope & Key Goals
 
-- Track items, stock levels, movements (in/out/adjustments) across one or more locations.
-- Simple purchase and issue flows (optional lightweight sales/issuance).
-- Works only inside the organization network (no public internet exposure).
-- Low‑maintenance, small user base (1–20 users), minimal training.
-- Simplified to anonymous operation without user accounts or authentication.
+- Maintain a catalog of items with categories, units, optional owners, and active flags.
+- Track issue requests and their line items with a simple approval/status workflow.
+- Internal-use app with role-based access and low admin overhead.
 
 ## 2) Functional Requirements
 
-### 2.1 Master Data
+### 2.1 Items, Categories, Units
 
-- Create/read/update/archive **Items** (SKU, name, barcode, category, unit, min stock, image/attachment).
-- **Categories** and **Units** management.
-- **Locations** (e.g., Warehouse, Store Room). Optional: hierarchical (Main → Sub‑location / Rack / Bin).
-- **Suppliers** (name, contact). Optional: **Customers** if you issue to external parties.
+- Items: create/read/update/delete (soft delete via active), unique SKU, required category + unit, optional owner_user_id, qrcode, min_stock, image_url.
+- Categories: CRUD, list/search by name.
+- Units: CRUD (Admin-only for mutations), list/search by name or symbol.
 
-### 2.2 Inventory Operations
+### 2.2 Issue Workflow
 
-- **Goods Receipt (IN)**: increase stock with reference (PO, or manual receipt).
-- **Goods Issue (OUT)**: decrease stock with reason (usage, transfer, damage, etc.).
-- **Stock Adjustment**: correct stock to physical count (with note & reason).
-- **Transfers (optional)**: move stock between locations.
-- **Reorder Hints**: flag items below minimum stock.
+- Issues: create/update/delete; unique code; statuses DRAFT, APPROVED, ISSUED, CANCELLED.
+- Approve: only when issue is DRAFT; set approved_by.
+- Change status endpoint for administrative updates.
+- Issue items: add/update/delete only when parent issue is DRAFT; prevent duplicate (issue_id, item_id); bulk add supported.
+- Dashboard stats: status breakdown plus advanced averages/completion rate.
 
-### 2.3 Simple Procurement / Issuance (Optional)
+### 2.3 Users & Authentication
 
-- **Purchase Orders (PO)** → items, qty, cost, status (Draft → Approved → Received).
-- **Requests/Issues** → requests, approval, then issue from stock.
+- Email/password login returns JWT access token.
+- /auth/me returns current user profile.
+- Users CRUD (Admin-only for create/update/delete); soft delete deactivates user; self-delete blocked.
 
-### 2.4 Search & Reporting
+### 2.4 Search & Pagination
 
-- Global search by SKU/name/barcode.
-- Current stock by item/location; transaction history (filter by date/item/location/type).
-- Download CSV (items, stock, transactions).
+- Pagination (page/page_size) on list endpoints.
+- Search/filter: users (name/email), items (SKU/name), categories (name), units (name/symbol), issues (code/status + status_filter), issue items by issue_id or item_id.
 
-### 2.5 Security & LAN Constraint
+### 2.5 Settings & System
 
-- API **only reachable from LAN** subnets; reverse proxy blocks other IPs.
-- Full audit trail of critical actions (simplified without user tracking).
+- Single settings record: app_name, items_per_page, allow_negative_stock, low_stock_threshold, backup options, notifications.
+- Admin-only: view/update settings, trigger manual backup, view system info.
 
-## 3) Non‑Functional Requirements
+## 3) Non-Functional Requirements
 
-- **Performance**: typical request < 300ms under light load (1–20 users).
-- **Reliability**: durable DB; daily backups; transaction integrity.
-- **Maintainability**: clean modular API, typed models, migrations (Alembic).
-- **Portability**: run via `systemd` services on Ubuntu 24.04.
+- Performance: typical request < 300ms under light load (1-20 users).
+- Reliability: MySQL durability; manual/auto backup support via settings.
+- Maintainability: typed schemas, service/repository layers, structured logging.
+- Portability: local dev or Ubuntu 24.04 deployment.
 
 ---
 
 ## 5) Architecture Overview
 
 ```
-  React Front-end  (MSAL RN)  ── (OIDC PKCE)──>  Microsoft Entra ID (M365)
-        │                                   ▲
-        ▼  HTTPS + Bearer JWT (access token) │
-   Nginx reverse proxy  (LAN allowlist) ─────┘
-        │
-        ▼
-   FastAPI (uvicorn workers)
-        │
-        ▼
-      MySQL 8
+React Web App (Vite)
+    |
+    | HTTPS + Bearer JWT
+    v
+FastAPI (uvicorn workers)
+    |
+    v
+MySQL 8
 ```
 
-- **Auth flow (high level)**
-  1. RN app uses **MSAL for React Native** (PKCE) to sign in and obtain **ID token + access token**.
-  2. The app calls FastAPI with **Bearer access token** in header.
-  3. FastAPI validates token signature & claims (issuer/tenant, audience, expiry) using Entra metadata (JWKS).
+- Auth flow (high level)
+  1. User logs in with email/password via POST /auth/login and receives a JWT.
+  2. Front-end stores token and sends Authorization: Bearer <token>.
+  3. FastAPI validates JWT and enforces role checks per route.
 
 ---
 
-## 6) Microsoft 365 / Entra ID Setup
+## 6) Authentication & Authorization (Current)
 
-1. **Register two apps in Entra ID** (Azure Portal → App registrations):
-   - **Mobile App** (public client):
-     - Redirect URIs → \`\` (per MSAL RN docs) and any platform URIs required.
-     - Allow public client flows.
-   - **Backend API** (web/confidential):
-     - Expose an API → set **Application ID URI** (e.g., `api://inventory.local`).
-     - Add a scope (e.g., `access_as_user`).
-2. **Grant RN app permission** to call the API scope and **admin consent**.
-3. **Collect config**: Tenant ID, Client IDs (mobile & API), Issuer URL, JWKS URL.
-4. **FastAPI**: configure OIDC validation (audience = your API’s Application ID URI; issuer = your tenant v2.0 endpoint).
+- JWT access tokens signed by the API (HS256) with configurable expiry.
+- Roles: ADMIN, STAFF, AUDITOR; role checks applied on mutation endpoints.
+- Account state: inactive users cannot authenticate.
 
 ---
 
@@ -95,37 +83,25 @@
 
 ### 7.1 ERD (textual)
 
-- **users** (id, m365_oid, name, email, role, active, created_at) — has many **items** (optional)
-- **locations** (id, name, code, active)
-- **categories** (id, name)
-- **units** (id, name, symbol, multiplier)
-- **items** (id, sku, name, category_id→categories, unit_id→units, owner_user_id→users (nullable), barcode, min_stock, image_url, active)
-- **stock_levels** (id, item_id→items, location_id→locations, qty_on_hand, updated_at)
-- **stock_tx** (id, item_id, location_id, tx_type[IN|OUT|ADJ|XFER], qty, ref, note, tx_at, user_id)
-- **purchase_orders** (id, supplier_name, code, status, ordered_at, received_at, note)
-- **issues** (id, code, status, requested_by, approved_by, issued_at, note)
-- **issue_items** (id, issue_id→issues, item_id, qty)
-- **attachments** (id, entity_type, entity_id, file_url, note)
-- **audit_log** (id, actor_user_id, action, entity_type, entity_id, payload_json, created_at)
+- users (id, name, email, password_hash, role, active, created_at)
+- categories (id, name)
+- units (id, name, symbol, multiplier)
+- items (id, sku, name, category_id, unit_id, owner_user_id, qrcode, min_stock, image_url, active)
+- issues (id, code, status, requested_by, approved_by, issued_at, note, updated_at)
+- issue_items (id, issue_id, item_id, qty)
+- settings (id=1, app_name, items_per_page, allow_negative_stock, auto_backup_enabled, backup_retention_days, low_stock_threshold, enable_notifications, updated_at, updated_by)
 
 ### 7.2 Minimal SQL DDL (MySQL 8)
 
 ```sql
 CREATE TABLE users (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  m365_oid VARCHAR(64) NOT NULL UNIQUE, -- Entra object id
   name VARCHAR(120) NOT NULL,
   email VARCHAR(160) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
   role ENUM('ADMIN','STAFF','AUDITOR') NOT NULL DEFAULT 'STAFF',
   active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
-CREATE TABLE locations (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  name VARCHAR(80) NOT NULL,
-  code VARCHAR(24) NOT NULL UNIQUE,
-  active TINYINT(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB;
 
 CREATE TABLE categories (
@@ -137,7 +113,7 @@ CREATE TABLE units (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(40) NOT NULL UNIQUE,
   symbol VARCHAR(16) NOT NULL,
-  multiplier DECIMAL(12,6) NOT NULL DEFAULT 1.0 -- for conversion if needed
+  multiplier DECIMAL(12,6) NOT NULL DEFAULT 1.0
 ) ENGINE=InnoDB;
 
 CREATE TABLE items (
@@ -146,48 +122,14 @@ CREATE TABLE items (
   name VARCHAR(160) NOT NULL,
   category_id BIGINT NOT NULL,
   unit_id BIGINT NOT NULL,
-  barcode VARCHAR(64),
+  owner_user_id BIGINT NULL,
+  qrcode VARCHAR(64),
   min_stock DECIMAL(18,6) NOT NULL DEFAULT 0,
   image_url VARCHAR(255),
   active TINYINT(1) NOT NULL DEFAULT 1,
   CONSTRAINT fk_items_category FOREIGN KEY (category_id) REFERENCES categories(id),
-  CONSTRAINT fk_items_unit FOREIGN KEY (unit_id) REFERENCES units(id)
-) ENGINE=InnoDB;
-
-CREATE TABLE stock_levels (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  item_id BIGINT NOT NULL,
-  location_id BIGINT NOT NULL,
-  qty_on_hand DECIMAL(18,6) NOT NULL DEFAULT 0,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_item_location (item_id, location_id), -- ensures one row per item/location
-  CONSTRAINT fk_sl_item FOREIGN KEY (item_id) REFERENCES items(id),
-  CONSTRAINT fk_sl_loc FOREIGN KEY (location_id) REFERENCES locations(id)
-) ENGINE=InnoDB;
-
-CREATE TABLE stock_tx (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  item_id BIGINT NOT NULL,
-  location_id BIGINT NOT NULL,
-  tx_type ENUM('IN','OUT','ADJ','XFER') NOT NULL,
-  qty DECIMAL(18,6) NOT NULL,
-  ref VARCHAR(80),
-  note VARCHAR(255),
-  tx_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  user_id BIGINT NOT NULL,
-  CONSTRAINT fk_tx_item FOREIGN KEY (item_id) REFERENCES items(id),
-  CONSTRAINT fk_tx_loc FOREIGN KEY (location_id) REFERENCES locations(id),
-  CONSTRAINT fk_tx_user FOREIGN KEY (user_id) REFERENCES users(id)
-) ENGINE=InnoDB;
-
-CREATE TABLE purchase_orders (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  supplier_name VARCHAR(160) NOT NULL,
-  code VARCHAR(40) NOT NULL UNIQUE,
-  status ENUM('DRAFT','APPROVED','RECEIVED','CANCELLED') NOT NULL DEFAULT 'DRAFT',
-  ordered_at DATETIME,
-  received_at DATETIME,
-  note VARCHAR(255)
+  CONSTRAINT fk_items_unit FOREIGN KEY (unit_id) REFERENCES units(id),
+  CONSTRAINT fk_items_owner FOREIGN KEY (owner_user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE issues (
@@ -198,6 +140,7 @@ CREATE TABLE issues (
   approved_by BIGINT,
   issued_at DATETIME,
   note VARCHAR(255),
+  updated_at DATETIME,
   CONSTRAINT fk_issue_req FOREIGN KEY (requested_by) REFERENCES users(id),
   CONSTRAINT fk_issue_app FOREIGN KEY (approved_by) REFERENCES users(id)
 ) ENGINE=InnoDB;
@@ -211,45 +154,43 @@ CREATE TABLE issue_items (
   CONSTRAINT fk_i_items_item FOREIGN KEY (item_id) REFERENCES items(id)
 ) ENGINE=InnoDB;
 
-CREATE TABLE attachments (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  entity_type VARCHAR(40) NOT NULL, -- e.g., 'ITEM','PO','ISSUE'
-  entity_id BIGINT NOT NULL,
-  file_url VARCHAR(255) NOT NULL,
-  note VARCHAR(255)
+CREATE TABLE IF NOT EXISTS settings (
+  id INT PRIMARY KEY DEFAULT 1,
+  app_name VARCHAR(100) NOT NULL DEFAULT 'Inventory Management System',
+  items_per_page INT NOT NULL DEFAULT 50,
+  allow_negative_stock TINYINT(1) NOT NULL DEFAULT 0,
+  auto_backup_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  backup_retention_days INT NOT NULL DEFAULT 30,
+  low_stock_threshold INT NOT NULL DEFAULT 10,
+  enable_notifications TINYINT(1) NOT NULL DEFAULT 1,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  updated_by BIGINT NULL,
+  CONSTRAINT chk_id CHECK (id = 1),
+  FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
-CREATE TABLE audit_log (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  actor_user_id BIGINT NOT NULL,
-  action VARCHAR(80) NOT NULL,
-  entity_type VARCHAR(40) NOT NULL,
-  entity_id BIGINT,
-  payload_json JSON,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_audit_entity (entity_type, entity_id),
-  CONSTRAINT fk_audit_user FOREIGN KEY (actor_user_id) REFERENCES users(id)
-) ENGINE=InnoDB;
+INSERT INTO settings (id) VALUES (1)
+ON DUPLICATE KEY UPDATE id=id;
 ```
-
-> **Stock integrity rule**: modify `stock_levels.qty_on_hand` only via **stored procedure** or application service that also inserts a row into `stock_tx` within the same transaction.
 
 ---
 
-## 8) API Design (sample)
+## 8) API Design (current)
 
-- `POST /auth/login` (handled by RN & Entra; backend only validates tokens).
-- `GET /me` → current user profile & role.
-- Items: `GET /items`, `POST /items`, `GET /items/{id}`, `PUT /items/{id}`, `DELETE /items/{id}` (soft delete/archive).
-- Stock: `GET /stock?item_id=&location_id=`, `POST /stock/in`, `POST /stock/out`, `POST /stock/adjust`, `POST /stock/transfer`.
-- Master: `GET/POST/PUT` for categories, units, locations, suppliers.
-- PO: `POST /po`, `POST /po/{id}/approve`, `POST /po/{id}/receive`.
-- Reports: `GET /reports/stock`, `GET /reports/tx` (CSV when `?format=csv`).
+- Auth: `POST /auth/login`, `GET /auth/me`
+- Users: `GET /users`, `GET /users/{id}`, `POST /users/register`, `POST /users/bulk-register`, `PUT /users/{id}`, `DELETE /users/{id}`
+- Items: `GET /items`, `GET /items/{id}`, `POST /items`, `PUT /items/{id}`, `DELETE /items/{id}` (soft delete)
+- Categories: `GET /categories`, `GET /categories/{id}`, `POST /categories`, `PUT /categories/{id}`, `DELETE /categories/{id}`
+- Units: `GET /units`, `GET /units/{id}`, `POST /units`, `PUT /units/{id}`, `DELETE /units/{id}`
+- Issues: `GET /issues`, `GET /issues/{id}`, `GET /issues/code/{code}`, `POST /issues`, `PUT /issues/{id}`, `DELETE /issues/{id}`, `PATCH /issues/{id}/approve`, `PATCH /issues/{id}/status`, `GET /issues/stats`, `GET /issues/advanced-stats`, `GET /issues/{id}/items`, `GET /issues/{id}/items-detailed`
+- Issue items: `GET /issue-items`, `GET /issue-items/{id}`, `GET /issue-items/issue/{issue_id}`, `POST /issue-items`, `POST /issue-items/bulk`, `PUT /issue-items/{id}`, `DELETE /issue-items/{id}`
+- Settings: `GET /settings`, `PUT /settings`, `POST /settings/backup`, `GET /settings/system-info`
+- Health: `GET /health`
 
 **AuthN/Z**
 
-- Require `Authorization: Bearer <access_token>`.
-- Role guard: Only Admin may mutate master data; Staff may do stock ops.
+- `Authorization: Bearer <access_token>` required for protected endpoints.
+- Role guard: Admin required for user management, unit mutations, settings, and delete operations for items, categories, and issues; staff can manage items, categories, issues, and issue items.
 
 ---
 
@@ -394,7 +335,7 @@ JWKS_URL=https://login.microsoftonline.com/<TENANT_ID>/discovery/v2.0/keys
 - Use \`\` for Entra ID login (PKCE).
 - After sign‑in, store access token securely (Keychain/Keystore) and send it as `Authorization: Bearer` header.
 - API base URL: `http://inventory.lan/` (ensure device can resolve DNS or host file; or use IP).
-- Barcode: add `react-native-camera`/`vision-camera` plugin for scanning (optional feature).
+- QR Code: add `react-native-camera`/`vision-camera` plugin for scanning (optional feature).
 
 **Minimal request**
 
@@ -428,7 +369,7 @@ const res = await fetch('http://inventory.lan/items', {
 2. Implement auth validation & `/me`, then master data (items, categories, locations, units).
 3. Implement stock IN/OUT/ADJ flows + consistent stock update service.
 4. Add PO/Issue modules; then reporting & CSV export.
-5. Add barcode scanning and attachments if needed.
+5. Add qrcode scanning and attachments if needed.
 
 ---
 

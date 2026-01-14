@@ -13,15 +13,12 @@ class Issue(BaseModel):
     issued_at: Optional[datetime] = Field(None, description="Timestamp when the issue was issued")
     note: Optional[str] = Field(None, description="Additional notes regarding the issue")
 
-
 class IssueCreate(BaseModel):
     code: str = Field(..., description="Code representing the issue type")
     status: str = Field(..., description="Current status of the issue")
     requested_by: Optional[int] = Field(None, description="ID of the user who requested the issue")
     approved_by: Optional[int] = Field(None, description="ID of the user who approved the issue")
-    issued_at: Optional[datetime] = Field(None, description="Timestamp when the issue was issued")
     note: Optional[str] = Field(None, description="Additional notes regarding the issue")
-    updated_at: Optional[datetime] = Field(None, description="Timestamp when the issue was last updated")
 
 class IssueUpdate(BaseModel):
     code: Optional[str] = Field(None, description="Code representing the issue type")

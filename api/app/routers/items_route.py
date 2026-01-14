@@ -15,7 +15,7 @@ def list_items(
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(50, ge=1, le=100, description="Number of items per page"),
     search: Optional[str] = Query(None, description="Search term for SKU or name"),
-    current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> ItemListResponse:
     try:
         logger.info(
@@ -60,7 +60,7 @@ def list_items(
 @router.get("/{item_id}", response_model=ItemResponse)
 def get_item(
     item_id: int = Path(..., gt=0, description="The ID of the item to retrieve"),
-    current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> ItemResponse:
     try:
         logger.info(
@@ -95,10 +95,10 @@ def get_item(
         )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-@router.post("/", response_model=ItemResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))])
+@router.post("/", response_model=ItemResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.STAFF))])
 def create_item(
     item_data: ItemCreate,
-    current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> ItemResponse:
     try:
         logger.info(
@@ -133,11 +133,11 @@ def create_item(
         )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {str(e)}")
     
-@router.put("/{item_id}", response_model=ItemResponse, dependencies=[Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))])
+@router.put("/{item_id}", response_model=ItemResponse, dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.STAFF))])
 def update_item(
     item_data: ItemUpdate,
     item_id: int = Path(..., gt=0, description="The ID of the item to update"),
-    current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> ItemResponse:
     try:
         logger.info(
@@ -165,10 +165,10 @@ def update_item(
         logger.error(f"Error updating item {item_id}: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {str(e)}")
     
-@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role([UserRole.ADMIN]))])
+@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def delete_item(
     item_id: int = Path(..., gt=0, description="The ID of the item to delete"),
-    current_user: UserRole = Depends(require_role([UserRole.ADMIN]))
+    current_user: UserRole = Depends(require_role(UserRole.ADMIN))
 ) -> None:
     try:
         logger.info(

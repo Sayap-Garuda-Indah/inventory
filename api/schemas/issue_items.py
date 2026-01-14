@@ -22,7 +22,7 @@ class IssueItemResponse(BaseModel):
     item_id: int
     qty: Decimal
 
-    item_sku: Optional[str] = None
+    item_code: Optional[str] = None
     item_name: Optional[str] = None
 
     class Config:

@@ -94,7 +94,7 @@ def get_category(
 @router.post("/", response_model=Category, status_code=status.HTTP_201_CREATED)
 def create_category(
     category_data: CategoryCreate,
-    current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> Category:
     try:
         logger.info(
@@ -132,7 +132,7 @@ def create_category(
 def update_category(
     category_data: CategoryUpdate,
     category_id: int = Path(..., gt=0, description="The ID of the category to update"),
-    current_user: UserRole = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> Category:
     try:
         logger.info(
@@ -170,7 +170,7 @@ def update_category(
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_category(
     category_id: int = Path(..., gt=0, description="The ID of the category to delete"),
-    current_user: dict = Depends(require_role([UserRole.ADMIN]))
+    current_user: dict = Depends(require_role(UserRole.ADMIN))
 ) -> None:
     try:
         logger.info(

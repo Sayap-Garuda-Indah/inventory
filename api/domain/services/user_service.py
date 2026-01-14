@@ -171,11 +171,46 @@ class UserService:
             )
 
     @staticmethod
+    def create_bulk_users(users_data: list[UserCreate]) -> list[UserResponse]:
+        """
+        Create multiple users in bulk.
+        """
+        created_users = []
+        password_hashes = []
+        try:
+            for user_data in users_data:
+                # Check for existing user with same email
+                if UserRepository.exists_by_email(user_data.email):
+                    continue # skip existing users
+
+                password_hashes.append(hash_password(user_data.password))
+            
+            response = UserRepository.create_bulk(users_data, password_hashes)
+
+            for user in response:
+                created_users.append(UserResponse(**user))
+
+            return created_users
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create bulk users: {str(e)}"
+            )
+
+    @staticmethod
     def update_user(user_id: int, user_data: UserUpdate) -> UserResponse:
         """
         Update an existing user.
         """
         try:
+            if not user_data.model_dump(exclude_unset=True):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="At least one field is required to update a user."
+                )
+
             existing_user = UserRepository.get_by_id(user_id)
             if not existing_user:
                 raise HTTPException(
@@ -191,7 +226,11 @@ class UserService:
                         detail=f"User with email {user_data.email} already exists."
                     )
                 
-            updated_user = UserRepository.update(user_id, user_data)
+            password_hash = None
+            if user_data.password:
+                password_hash = hash_password(user_data.password)
+
+            updated_user = UserRepository.update(user_id, user_data, password_hash=password_hash)
             if not updated_user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

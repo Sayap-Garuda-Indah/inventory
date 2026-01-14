@@ -1,10 +1,10 @@
 from typing import Optional, List, Dict, Any
-from db.pool import fetch_all, fetch_one, execute
+from db.pool import fetch_all, fetch_one, execute, execute_many
+from db.base import QueryBuilder, DatabaseUtils
 from schemas.users import UserCreate, UserUpdate
 from datetime import datetime, timezone
 
 class UserRepository:
-    
     @staticmethod
     def get_all(
         active_only: bool = True, 
@@ -16,19 +16,20 @@ class UserRepository:
         Get all users with optional filtering
         """
         try:
-            where_conditions = []
+            conditions = []
             params = []
 
             if active_only:
-                where_conditions.append("active = %s")
+                conditions.append("active = %s")
                 params.append(True)
 
-            if search:
-                where_conditions.append("(email LIKE %s OR name LIKE %s)")
-                search_param = f"%{search}%"
-                params.extend([search_param, search_param])
+            search_term = DatabaseUtils.sanitize_search_term(search)
+            search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["email", "name"])
+            if search_condition:
+                conditions.append(search_condition)
+                params.extend(search_params)
 
-            where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+            where_clause, params = QueryBuilder.build_where_clause(conditions, params)
 
             query = f"""
                 SELECT id, email, password_hash, name, role, active, created_at
@@ -43,26 +44,27 @@ class UserRepository:
             return fetch_all(query, tuple(params))
         except Exception as e:
             raise RuntimeError({str(e)})
-    
+
     @staticmethod
     def count(active_only: bool = True, search: Optional[str] = None) -> int:
         """
         Count users with optional filtering
         """
         try:
-            where_conditions = []
+            conditions = []
             params = []
 
             if active_only:
-                where_conditions.append("active = %s")
+                conditions.append("active = %s")
                 params.append(True)
 
-            if search:
-                where_conditions.append("(email LIKE %s OR name LIKE %s)")
-                search_params = f"%{search}%"
-                params.extend([search_params, search_params])
+            search_term = DatabaseUtils.sanitize_search_term(search)
+            search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["email", "name"])
+            if search_condition:
+                conditions.append(search_condition)
+                params.extend(search_params)
 
-            where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+            where_clause, params = QueryBuilder.build_where_clause(conditions, params)
 
             query = f"SELECT COUNT(*) as count FROM users {where_clause}"
             result = fetch_one(query, tuple(params))
@@ -80,8 +82,7 @@ class UserRepository:
         Get a user by internal ID
         """
         try:
-            if not isinstance(user_id, int) or user_id <= 0:
-                raise ValueError("invalid user id")
+            DatabaseUtils.validate_id(user_id, "User")
             
             query = """
                 SELECT id, email, password_hash, name, role, active, created_at
@@ -93,6 +94,7 @@ class UserRepository:
             return result
         except Exception as e:
             raise RuntimeError({str(e)})
+
 
     @staticmethod
     # def get_by_oid(m365_oid: str) -> Optional[Dict[str, Any]]:
@@ -120,8 +122,7 @@ class UserRepository:
         Get a user by email
         """
         try:
-            if not email or not email.strip():
-                raise ValueError("invalid email")
+            DatabaseUtils.validate_string(email, "email")
             
             query = """
                 SELECT id, email, password_hash, name, role, active, created_at
@@ -134,25 +135,6 @@ class UserRepository:
         except Exception as e:
             raise RuntimeError({str(e)})
 
-    # @staticmethod
-    # def get_by_username(username: str) -> Optional[Dict[str, Any]]:
-    #     """
-    #     Get a user by username
-    #     """
-    #     try:
-    #         if not username or not username.strip():
-    #             raise ValueError("invalid username")
-            
-    #         query = """
-    #             SELECT id, email, password_hash, name, role, active, created_at
-    #             FROM users
-    #             WHERE username = %s
-    #             """
-    #         result = fetch_one(query, (username,))
-
-    #         return result
-    #     except Exception as e:
-    #         raise RuntimeError({str(e)})
 
     @staticmethod
     def create(user_data: UserCreate, password_hash: str) -> Optional[Dict[str, Any]]:
@@ -186,13 +168,45 @@ class UserRepository:
             raise RuntimeError({str(e)})
 
     @staticmethod
+    def create_bulk(users_data: List[UserCreate], password_hashes: List[str]) -> List[Dict[str, Any]]:
+        """
+        Create multiple users in bulk
+        """
+        try:
+            query = """
+                INSERT INTO users (email, password_hash, name, role, active, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """
+            params = []
+            for user_data, password_hash in zip(users_data, password_hashes):
+                params.append((
+                    user_data.email.lower(),
+                    password_hash,
+                    user_data.name,
+                    user_data.role.value,
+                    user_data.active,
+                    datetime.now(timezone.utc)
+                ))
+            
+            execute_many(query, params)
+
+            created_users = []
+            for user_data in users_data:
+                user = UserRepository.get_by_email(user_data.email.lower())
+                if user:
+                    created_users.append(user)
+            
+            return created_users
+        except Exception as e:
+            raise RuntimeError({str(e)})
+
+    @staticmethod
     def update(user_id: int, user_data: UserUpdate, password_hash: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Update an existing user
         """
         try:
-            if not isinstance(user_id, int) or user_id <= 0:
-                raise ValueError("invalid user id")
+            DatabaseUtils.validate_id(user_id, "User")
             
             set_clauses = []
             params = []
@@ -207,32 +221,36 @@ class UserRepository:
 
             if user_data.email is not None:
                 set_clauses.append("email = %s")
-                params.append(user_data.email)
+                params.append(user_data.email.lower())
 
             if user_data.role is not None:
                 set_clauses.append("role = %s")
                 params.append(user_data.role.value)
-            
+
             if user_data.active is not None:
                 set_clauses.append("active = %s")
                 params.append(user_data.active)
-            
-            if not set_clauses:
-                # Nothing to update
-                result = UserRepository.get_by_id(user_id)
-                return result
-            
-            params.append(user_id)
-            query = f"UPDATE users SET {', '.join(set_clauses)} WHERE id = %s"
-            rows_affected = execute(query, tuple(params))
 
+            if not set_clauses:
+                raise ValueError("No fields to update")
+
+            params.append(user_id)
+            set_clause = ", ".join(set_clauses)
+
+            query = f"""
+                UPDATE users
+                SET {set_clause}
+                WHERE id = %s
+            """
+
+            rows_affected = execute(query, tuple(params))
             if rows_affected > 0:
-                result = UserRepository.get_by_id(user_id)
-                return result
-            
-            return None
+                return UserRepository.get_by_id(user_id)
+            else:
+                return None
         except Exception as e:
             raise RuntimeError({str(e)})
+
 
     @staticmethod
     def delete(user_id: int) -> bool:

@@ -83,14 +83,12 @@ class IssueRepository:
             query = """
                 INSERT INTO issues (code, status, requested_by, approved_by, issued_at, note, updated_at)
                 VALUES (%s, %s, %s, %s, NOW(), %s, NOW())
-                RETURNING id, code, status, requested_by, approved_by, issued_at, note, updated_at
                 """
             params = (
                 issue_data.code,
                 issue_data.status,
                 issue_data.requested_by,
                 issue_data.approved_by,
-                issue_data.issued_at,
                 issue_data.note
             )
 
@@ -99,7 +97,7 @@ class IssueRepository:
             if rows_affected == 0:
                 return None
             
-            data = fetch_one("SELECT * FROM issues WHERE id = LAST_INSERT_ID()")
+            data = fetch_one("SELECT * FROM issues WHERE code = %s ORDER BY id DESC LIMIT 1", (issue_data.code,))
             
             return data
         except Exception as e:
@@ -235,7 +233,7 @@ class IssueRepository:
             if search:
                 where_conditions.append("(code LIKE %s OR status LIKE %s)")
                 search_param = f"%{search}%"
-                params.extend([search_param, search_param, search_param])
+                params.extend([search_param, search_param])
 
             if status_filter:
                 where_conditions.append("status = %s")

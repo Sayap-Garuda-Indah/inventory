@@ -199,7 +199,7 @@ class DashboardService:
                     "item_id": item['item_id'],
                     "issue_id": item['issue_id'],
                     "qty": float(item['qty']),
-                    "item_sku": item.get('item_sku') or item_details.get('sku'),
+                    "item_code": item.get('item_code') or item_details.get('item_code'),
                     "item_name": item.get('item_name') or item_details.get('name'),
                     "category_id": item_details.get('category_id'),
                     "category_name": categories_map.get(item_details.get('category_id')),

@@ -1,10 +1,10 @@
 from typing import Optional, List, Dict, Any
 from db.pool import fetch_all, fetch_one, execute
+from db.base import QueryBuilder, DatabaseUtils, BaseRepository
 from schemas.units import UnitCreate, UnitUpdate
 
 
 class UnitsRepository:
-
     @staticmethod
     def get_all(
         limit: int = 100,
@@ -12,15 +12,16 @@ class UnitsRepository:
         search: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         try:
-            where_conditions = []
+            conditions = []
             params = []
 
-            if search:
-                where_conditions.append("(name LIKE %s or symbol LIKE %s)")
-                search_param = f"%{search}%"
-                params.extend([search_param, search_param])
+            search_term = DatabaseUtils.sanitize_search_term(search)
+            search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["name", "symbol"])
+            if search_condition:
+                conditions.append(search_condition)
+                params.extend(search_params)
             
-            where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+            where_clause, params = QueryBuilder.build_where_clause(conditions, params)
            
             query = f"""
                 SELECT id, name, symbol, multiplier
@@ -39,15 +40,16 @@ class UnitsRepository:
     @staticmethod
     def count(search: Optional[str] = None) -> int:
         try:
-            where_conditions = []
+            conditions = []
             params = []
 
-            if search:
-                where_conditions.append("(name LIKE %s or symbol LIKE %s)")
-                search_param = f"%{search}%"
-                params.extend([search_param, search_param])
+            search_term = DatabaseUtils.sanitize_search_term(search)
+            search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["name", "symbol"])
+            if search_condition:
+                conditions.append(search_condition)
+                params.extend(search_params)
             
-            where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+            where_clause, params = QueryBuilder.build_where_clause(conditions, params)
            
             query = f"""
                 SELECT COUNT(*) AS count
@@ -63,21 +65,18 @@ class UnitsRepository:
     @staticmethod
     def get_by_id(unit_id: int) -> Optional[Dict[str, Any]]:
         try:
-            if not isinstance(unit_id, int) or unit_id <= 0:
-                raise ValueError("unit_id must be a positive integer"
-                                 )
+            DatabaseUtils.validate_id(unit_id, "Unit")
             query = "SELECT * FROM units WHERE id = %s"
             row = fetch_one(query, (unit_id,))
             
             return row
         except Exception as e:
             raise RuntimeError({str(e)})
-        
+
     @staticmethod
     def get_by_name(name: str) -> Optional[Dict[str, Any]]:
         try:
-            if not name or name.strip() == "":
-                raise ValueError("name must be a non-empty string")
+            DatabaseUtils.validate_string(name, "name")
             
             query = "SELECT * FROM units WHERE name = %s"
             row = fetch_one(query, (name,))
@@ -85,12 +84,11 @@ class UnitsRepository:
             return row
         except Exception as e:
             raise RuntimeError({str(e)})
-        
+
     @staticmethod
     def get_by_symbol(symbol: str) -> Optional[Dict[str, Any]]:
         try:
-            if not symbol or symbol.strip() == "":
-                raise ValueError("symbol must be a non-empty string")
+            DatabaseUtils.validate_string(symbol, "symbol")
             
             query = "SELECT * FROM units WHERE symbol = %s"
             row = fetch_one(query, (symbol,))
@@ -98,6 +96,7 @@ class UnitsRepository:
             return row
         except Exception as e:
             raise RuntimeError({str(e)})
+
         
     @staticmethod
     def create(unit_data: UnitCreate) -> Dict[str, Any]:
@@ -115,12 +114,11 @@ class UnitsRepository:
             return create_unit
         except Exception as e:
             raise RuntimeError({str(e)})
-        
+
     @staticmethod
     def update(unit_id: int, unit_data: UnitUpdate) -> Optional[Dict[str, Any]]:
         try:
-            if not isinstance(unit_id, int) or unit_id <= 0:
-                raise ValueError("unit_id must be a positive integer")
+            DatabaseUtils.validate_id(unit_id, "Unit")
             
             # Dynamic update query
             set_clause = []
@@ -162,10 +160,9 @@ class UnitsRepository:
     @staticmethod
     def delete(unit_id: int) -> bool:
         try:
-            if not isinstance(unit_id, int) or unit_id <= 0:
-                raise ValueError("unit_id must be a positive integer")
+            DatabaseUtils.validate_id(unit_id, "Unit")
             
-            check_query = "SELECT id FROM units WHERE id = %s"
+            check_query = "SELECT COUNT(1) AS count FROM units WHERE id = %s"
             result = fetch_one(check_query, (unit_id,))
 
             if result and result['count'] > 0:
@@ -177,56 +174,31 @@ class UnitsRepository:
             return rows_affected > 0
         except Exception as e:
             raise RuntimeError({str(e)})
-        
+
     @staticmethod
     def exists_by_name(name: str, exclude_id: Optional[int] = None) -> bool:
         try:
-            if not name or name.strip() == "":
-                raise ValueError("name must be a non-empty string")
-            
-            if exclude_id:
-                result = fetch_one("SELECT COUNT(*) AS count FROM units WHERE name = %s AND id != %s", (name.strip(), exclude_id))
-            else:
-                result = fetch_one("SELECT COUNT(*) AS count FROM units WHERE name = %s", (name.strip(),))
-
-            if result and result['count'] > 0:
-                return True
-            
-            return False
+            DatabaseUtils.validate_string(name, "name")
+            if exclude_id is not None:
+                DatabaseUtils.validate_id(exclude_id, "Unit")
+            return BaseRepository.exists_by_field("units", "name", name.strip(), exclude_id)
         except Exception as e:
             raise RuntimeError({str(e)})
-        
+
     @staticmethod
     def exists_by_symbol(symbol: str, exclude_id: Optional[int] = None) -> bool:
         try:
-            if not symbol or symbol.strip() == "":
-                raise ValueError("symbol must be a non-empty string")
-            
-            if exclude_id:
-                result = fetch_one("SELECT COUNT(*) AS count FROM units WHERE symbol = %s AND id != %s", (symbol.strip(), exclude_id))
-            else:
-                result = fetch_one("SELECT COUNT(*) AS count FROM units WHERE symbol = %s", (symbol.strip(),))
-
-            if result and result['count'] > 0:
-                return True
-            
-            return False
+            DatabaseUtils.validate_string(symbol, "symbol")
+            if exclude_id is not None:
+                DatabaseUtils.validate_id(exclude_id, "Unit")
+            return BaseRepository.exists_by_field("units", "symbol", symbol.strip(), exclude_id)
         except Exception as e:
             raise RuntimeError({str(e)})
 
     @staticmethod
     def exists_by_id(unit_id: int) -> bool:
         try:
-            query = """
-                SELECT COUNT(1) as count
-                FROM units
-                WHERE id = %s
-                """
-            
-            result = fetch_one(query, (unit_id,))
-            if result is not None:
-                return result['count'] > 0
-            else:
-                return False
+            DatabaseUtils.validate_id(unit_id, "Unit")
+            return BaseRepository.exists_by_field("units", "id", unit_id)
         except Exception as e:
             raise RuntimeError({str(e)})

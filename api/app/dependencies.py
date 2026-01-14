@@ -15,7 +15,7 @@ def get_current_user(request: Request, credential: HTTPAuthorizationCredentials 
     # Upsert user into DB
     try:
         payload = verify_access_token(token=credential.credentials)
-        user_id = payload.get("user_id")
+        user_id = payload.get('user_id')
 
         if not user_id:
             raise HTTPException(

@@ -1,17 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Container, Row, Col, Card, Table, Form, Badge, Spinner, Alert, Button } from 'react-bootstrap';
+import { ArrowLeft } from 'lucide-react';
+import {
+    Button,
+    Card,
+    CardHeader,
+    CardBody,
+    Alert,
+    Spinner,
+    Badge,
+    FormSelect,
+} from './UI';
 
 interface IssueItem {
     id: number;
     issue_id: number;
     item_id: number;
     qty: number;
-    item_sku?: string;
+    item_code?: string;
     item_name?: string;
     category_id?: number;
-    category_name?: string;
+    category_name?: string | { id: number; name: string };
     unit_id?: number;
     unit_name?: string;
     unit_symbol?: string;
@@ -45,8 +55,10 @@ function IssueDetailsPage() {
     const [issueDetails, setIssueDetails] = useState<IssueDetailsData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [sortBy, setSortBy] = useState<'name' | 'sku' | 'qty' | 'category'>('name');
+    const [sortBy, setSortBy] = useState<'name' | 'item_code' | 'qty' | 'category'>('name');
     const [filterCategory, setFilterCategory] = useState<string>('all');
+    const [requestedByName, setRequestedByName] = useState<string>('');
+    const [approvedByName, setApprovedByName] = useState<string>('');
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
@@ -62,6 +74,37 @@ function IssueDetailsPage() {
             fetchIssueDetails();
         }
     }, [issueId, token]);
+
+    useEffect(() => {
+        const loadUserNames = async () => {
+            if (!issueDetails) return;
+
+            const requestedBy = issueDetails.issue.requested_by;
+            if (requestedBy && typeof requestedBy === 'object') {
+                setRequestedByName(requestedBy.name || `User #${requestedBy.id ?? ''}`.trim());
+            } else if (requestedBy && typeof requestedBy === 'number') {
+                const userData = await fetchUserData(requestedBy);
+                if (userData) {
+                    setRequestedByName(userData.name || `User #${requestedBy}`);
+                }
+            } else {
+                setRequestedByName('');
+            }
+
+            const approvedBy = issueDetails.issue.approved_by;
+            if (approvedBy && typeof approvedBy === 'object') {
+                setApprovedByName(approvedBy.name || `User #${approvedBy.id ?? ''}`.trim());
+            } else if (approvedBy && typeof approvedBy === 'number') {
+                const userData = await fetchUserData(approvedBy);
+                if (userData) {
+                    setApprovedByName(userData.name || `User #${approvedBy}`);
+                }
+            } else {
+                setApprovedByName('');
+            }
+        };
+        loadUserNames();
+    }, [issueDetails]);
 
     const fetchIssueDetails = async () => {
         if (!issueId || !token) return;
@@ -101,52 +144,39 @@ function IssueDetailsPage() {
         }
     };
 
-    const getSortedItems = (): IssueItem[] => {
-        if (!issueDetails?.items) return [];
+    const fetchUserData = async (userId: number | string) => {
+        if (!token) return null;
 
-        let filtered = issueDetails.items;
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/users/${userId}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
 
-        if (filterCategory !== 'all') {
-            filtered = filtered.filter((item) => item.category_name === filterCategory);
+            if (!response.ok) {
+                throw new Error('Failed to fetch user data');
+            }
+
+            const data = await response.json();
+            return data;
+        } catch (err) {
+            console.error('Error fetching user data:', err);
+            return null;
         }
-
-        const sorted = [...filtered];
-        switch (sortBy) {
-            case 'name':
-                sorted.sort((a, b) => (a.item_name || '').localeCompare(b.item_name || ''));
-                break;
-            case 'sku':
-                sorted.sort((a, b) => (a.item_sku || '').localeCompare(b.item_sku || ''));
-                break;
-            case 'qty':
-                sorted.sort((a, b) => b.qty - a.qty);
-                break;
-            case 'category':
-                sorted.sort((a, b) =>
-                    getCategoryName(a.category_name).localeCompare(getCategoryName(b.category_name))
-                );
-                break;
-        }
-
-        return sorted;
     };
 
-    const getCategories = (): { id: string; name: string }[] => {
-        if (!issueDetails?.items) return [];
-        const map = new Map<string, string>();
-        issueDetails.items.forEach((item) => {
-            const name = getCategoryName(item.category_name);
-            const id = item.category_id ? String(item.category_id) : name;
-            if (name) map.set(id, name);
-        });
-        return Array.from(map.entries())
-            .map(([id, name]) => ({ id, name }))
-            .sort((a, b) => a.name.localeCompare(b.name));
-    };
-
-    const getCategoryName = (cat: any): string => {
+    const getCategoryName = (cat: unknown): string => {
         if (!cat && cat !== 0) return '';
-        return typeof cat === 'object' && cat !== null ? cat.name ?? String(cat.id ?? '') : String(cat);
+        if (typeof cat === 'object' && cat !== null) {
+            const record = cat as { name?: string; id?: number | string };
+            return record.name ?? String(record.id ?? '');
+        }
+        return String(cat);
     };
 
     const getStatusColor = (status: string): 'warning' | 'success' | 'info' | 'secondary' | 'danger' => {
@@ -164,227 +194,235 @@ function IssueDetailsPage() {
         }
     };
 
-    const getUserDisplay = (user: any): string => {
-        if (!user) return '-';
-        if (typeof user === 'number') return `User #${user}`;
-        if (typeof user === 'string') return user;
+    const getUserDisplay = (userValue: unknown, userName: string | null): string => {
+        if (!userValue) return '-';
+        if (userName) return userName;
+        if (typeof userValue === 'number') return `User #${userValue}`;
+        if (typeof userValue === 'string') return userValue;
+        if (typeof userValue === 'object' && userValue !== null) {
+            const record = userValue as { name?: string; id?: number | string };
+            return record.name ?? `User #${record.id ?? ''}`.trim();
+        }
         return '-';
     };
 
+    const categories = useMemo(() => {
+        if (!issueDetails?.items) return [];
+        const map = new Map<string, string>();
+        issueDetails.items.forEach((item) => {
+            const name = getCategoryName(item.category_name);
+            const id = item.category_id ? String(item.category_id) : name;
+            if (name) map.set(id, name);
+        });
+        return Array.from(map.entries())
+            .map(([id, name]) => ({ id, name }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [issueDetails]);
+
+    const sortedItems = useMemo(() => {
+        if (!issueDetails?.items) return [];
+
+        let filtered = issueDetails.items;
+
+        if (filterCategory !== 'all') {
+            filtered = filtered.filter((item) => getCategoryName(item.category_name) === filterCategory);
+        }
+
+        const sorted = [...filtered];
+        switch (sortBy) {
+            case 'name':
+                sorted.sort((a, b) => (a.item_name || '').localeCompare(b.item_name || ''));
+                break;
+            case 'item_code':
+                sorted.sort((a, b) => (a.item_code || '').localeCompare(b.item_code || ''));
+                break;
+            case 'qty':
+                sorted.sort((a, b) => b.qty - a.qty);
+                break;
+            case 'category':
+                sorted.sort((a, b) =>
+                    getCategoryName(a.category_name).localeCompare(getCategoryName(b.category_name))
+                );
+                break;
+        }
+
+        return sorted;
+    }, [issueDetails, sortBy, filterCategory]);
+
     if (authLoading || isLoading) {
         return (
-            <div className="d-flex justify-content-center align-items-center min-vh-100 bg-light">
-                <Spinner animation="border" role="status">
-                    <span className="visually-hidden">Loading issue details...</span>
-                </Spinner>
+            <div className="flex items-center justify-center py-12">
+                <Spinner size="lg" />
             </div>
         );
     }
 
     if (error) {
         return (
-            <Container className="py-5">
-                <Alert variant="danger" onClose={() => setError(null)} dismissible>
-                    <Alert.Heading>Error Loading Issue</Alert.Heading>
-                    <p>{error}</p>
-                    <Button variant="danger" onClick={() => navigate('/dashboard')}>
-                        <i className="bi bi-arrow-left me-2"></i>Back to Dashboard
-                    </Button>
+            <div className="px-4 py-6 max-w-5xl mx-auto">
+                <Alert variant="danger" dismissible onClose={() => setError(null)}>
+                    <div className="space-y-3">
+                        <p className="font-semibold">Error Loading Issue</p>
+                        <p>{error}</p>
+                        <Button variant="danger" onClick={() => navigate('/dashboard')}>
+                            Back to Dashboard
+                        </Button>
+                    </div>
                 </Alert>
-            </Container>
+            </div>
         );
     }
 
     if (!issueDetails) {
         return (
-            <Container className="py-5">
+            <div className="px-4 py-6 max-w-5xl mx-auto">
                 <Alert variant="warning">
-                    <Alert.Heading>Issue Not Found</Alert.Heading>
-                    <Button variant="warning" onClick={() => navigate('/dashboard')}>
-                        <i className="bi bi-arrow-left me-2"></i>Back to Dashboard
-                    </Button>
+                    <div className="space-y-3">
+                        <p className="font-semibold">Issue Not Found</p>
+                        <Button variant="secondary" onClick={() => navigate('/dashboard')}>
+                            Back to Dashboard
+                        </Button>
+                    </div>
                 </Alert>
-            </Container>
+            </div>
         );
     }
 
-    const sortedItems = getSortedItems();
-    const categories = getCategories();
+    const sortOptions = [
+        { value: 'name', label: 'Item Name' },
+        { value: 'item_code', label: 'Item Code' },
+        { value: 'qty', label: 'Quantity' },
+        { value: 'category', label: 'Category' },
+    ];
+
+    const categoryOptions = [
+        { value: 'all', label: 'All Categories' },
+        ...categories.map((cat) => ({ value: cat.name, label: cat.name })),
+    ];
 
     return (
-        <div className="bg-light" style={{ minHeight: '100vh' }}>
-            {/* Header */}
-            <nav className="navbar navbar-light bg-white shadow-sm mb-4 border-bottom">
-                <Container fluid="lg">
-                    <Button
-                        variant="link"
-                        className="text-decoration-none text-primary p-0 me-3"
+        <div className="w-full h-full">
+            <div className="px-4 py-6 max-w-6xl mx-auto">
+                <div className="mb-6 flex items-center gap-4">
+                    <button
                         onClick={() => navigate('/dashboard')}
+                        className="text-blue-600 hover:text-blue-700 transition-colors"
                     >
-                        <i className="bi bi-arrow-left fs-5"></i>
-                    </Button>
-                    <span className="navbar-brand mb-0 h5">Issue Details</span>
-                </Container>
-            </nav>
+                        <ArrowLeft className="w-6 h-6" />
+                    </button>
+                    <div>
+                        <h2 className="text-3xl font-bold text-gray-900">Issue Details</h2>
+                        <p className="text-gray-600 mt-1">Issue code: {issueDetails.issue.code}</p>
+                    </div>
+                </div>
 
-            {/* Main Content */}
-            <Container className="py-4" fluid="lg">
-                {/* Issue Info Card */}
-                <Card className="mb-4 shadow-sm">
-                    <Card.Header className="bg-white border-bottom">
-                        <Row className="align-items-center">
-                            <Col>
-                                <h5 className="mb-0">Issue Information</h5>
-                            </Col>
-                            <Col xs="auto">
-                                <Badge bg={getStatusColor(issueDetails.issue.status)}>
-                                    {issueDetails.issue.status}
-                                </Badge>
-                            </Col>
-                        </Row>
-                    </Card.Header>
-                    <Card.Body>
-                        <Row className="g-3 mb-4">
-                            <Col md={6} lg={4}>
-                                <div>
-                                    <small className="text-muted d-block fw-bold mb-1">Issue Code</small>
-                                    <code className="fs-6 text-primary">{issueDetails.issue.code}</code>
-                                </div>
-                            </Col>
-                            <Col md={6} lg={4}>
-                                <div>
-                                    <small className="text-muted d-block fw-bold mb-1">Status</small>
-                                    <span>{issueDetails.issue.status}</span>
-                                </div>
-                            </Col>
-                            <Col md={6} lg={4}>
-                                <div>
-                                    <small className="text-muted d-block fw-bold mb-1">Requested By</small>
-                                    <span>{getUserDisplay(issueDetails.issue.requested_by)}</span>
-                                </div>
-                            </Col>
-                            <Col md={6} lg={4}>
-                                <div>
-                                    <small className="text-muted d-block fw-bold mb-1">Approved By</small>
-                                    <span>{getUserDisplay(issueDetails.issue.approved_by)}</span>
-                                </div>
-                            </Col>
-                            <Col md={6} lg={4}>
-                                <div>
-                                    <small className="text-muted d-block fw-bold mb-1">Issued At</small>
-                                    <span>
-                                        {issueDetails.issue.issued_at
-                                            ? new Date(issueDetails.issue.issued_at).toLocaleString()
-                                            : '-'}
-                                    </span>
-                                </div>
-                            </Col>
-                        </Row>
+                <Card className="mb-6">
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <h5 className="font-bold">Issue Information</h5>
+                            <Badge variant={getStatusColor(issueDetails.issue.status)}>
+                                {issueDetails.issue.status}
+                            </Badge>
+                        </div>
+                    </CardHeader>
+                    <CardBody>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div>
+                                <p className="text-sm text-gray-500">Issue Code</p>
+                                <p className="font-mono text-blue-600">{issueDetails.issue.code}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500">Status</p>
+                                <p>{issueDetails.issue.status}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500">Requested By</p>
+                                <p>{getUserDisplay(issueDetails.issue.requested_by, requestedByName)}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500">Approved By</p>
+                                <p>{getUserDisplay(issueDetails.issue.approved_by, approvedByName)}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500">Issued At</p>
+                                <p>
+                                    {issueDetails.issue.issued_at
+                                        ? new Date(issueDetails.issue.issued_at).toLocaleString()
+                                        : '-'}
+                                </p>
+                            </div>
+                        </div>
 
                         {issueDetails.issue.note && (
-                            <div className="pt-3 border-top">
-                                <small className="text-muted d-block fw-bold mb-2">Note</small>
-                                <p className="mb-0">{issueDetails.issue.note}</p>
+                            <div className="pt-4 mt-4 border-t border-gray-200">
+                                <p className="text-sm text-gray-500">Note</p>
+                                <p>{issueDetails.issue.note}</p>
                             </div>
                         )}
-                    </Card.Body>
+                    </CardBody>
                 </Card>
 
-                {/* Summary Cards */}
-                <Row className="g-3 mb-4">
-                    <Col md={6} lg={4}>
-                        <Card className="h-100 shadow-sm border-0">
-                            <Card.Body className="text-center">
-                                <h6 className="text-muted small">Total Items</h6>
-                                <div className="fs-3 fw-bold text-primary">
-                                    {issueDetails.total_items || 0}
-                                </div>
-                            </Card.Body>
-                        </Card>
-                    </Col>
-                    <Col md={6} lg={4}>
-                        <Card className="h-100 shadow-sm border-0">
-                            <Card.Body className="text-center">
-                                <h6 className="text-muted small">Total Quantity</h6>
-                                <div className="fs-3 fw-bold text-primary">
-                                    {issueDetails?.total_qty
-                                        ? parseFloat(issueDetails.total_qty.toString()).toFixed(2)
-                                        : '0.00'}
-                                </div>
-                            </Card.Body>
-                        </Card>
-                    </Col>
-                    <Col md={6} lg={4}>
-                        <Card className="h-100 shadow-sm border-0">
-                            <Card.Body className="text-center">
-                                <h6 className="text-muted small">Categories</h6>
-                                <div className="fs-3 fw-bold text-primary">
-                                    {categories.length || 0}
-                                </div>
-                            </Card.Body>
-                        </Card>
-                    </Col>
-                </Row>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <Card>
+                        <CardBody className="text-center">
+                            <p className="text-sm text-gray-500">Total Items</p>
+                            <p className="text-3xl font-bold text-gray-900">{issueDetails.total_items || 0}</p>
+                        </CardBody>
+                    </Card>
+                    <Card>
+                        <CardBody className="text-center">
+                            <p className="text-sm text-gray-500">Total Quantity</p>
+                            <p className="text-3xl font-bold text-gray-900">
+                                {issueDetails?.total_qty
+                                    ? parseFloat(issueDetails.total_qty.toString()).toFixed(2)
+                                    : '0.00'}
+                            </p>
+                        </CardBody>
+                    </Card>
+                    <Card>
+                        <CardBody className="text-center">
+                            <p className="text-sm text-gray-500">Categories</p>
+                            <p className="text-3xl font-bold text-gray-900">{categories.length || 0}</p>
+                        </CardBody>
+                    </Card>
+                </div>
 
-                {/* Controls Card */}
-                <Card className="mb-4 shadow-sm">
-                    <Card.Body>
-                        <Row className="g-3">
-                            <Col md={6}>
-                                <Form.Group>
-                                    <Form.Label className="fw-bold">Sort By</Form.Label>
-                                    <Form.Select
-                                        value={sortBy}
-                                        onChange={(e) =>
-                                            setSortBy(e.target.value as 'name' | 'sku' | 'qty' | 'category')
-                                        }
-                                    >
-                                        <option value="name">Item Name</option>
-                                        <option value="sku">SKU</option>
-                                        <option value="qty">Quantity</option>
-                                        <option value="category">Category</option>
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-
-                            {categories.length > 0 && (
-                                <Col md={6}>
-                                    <Form.Group>
-                                        <Form.Label className="fw-bold">Filter Category</Form.Label>
-                                        <Form.Select
-                                            value={filterCategory}
-                                            onChange={(e) => setFilterCategory(e.target.value)}
-                                        >
-                                            <option value="all">All Categories</option>
-                                            {categories.map((cat) => (
-                                                <option key={cat.id} value={cat.name}>
-                                                    {cat.name}
-                                                </option>
-                                            ))}
-                                        </Form.Select>
-                                    </Form.Group>
-                                </Col>
-                            )}
-                        </Row>
-                    </Card.Body>
+                <Card className="mb-6">
+                    <CardBody>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormSelect
+                                label="Sort By"
+                                options={sortOptions}
+                                value={sortBy}
+                                onChange={(e) =>
+                                    setSortBy(e.target.value as 'name' | 'item_code' | 'qty' | 'category')
+                                }
+                            />
+                            <FormSelect
+                                label="Filter Category"
+                                options={categoryOptions}
+                                value={filterCategory}
+                                onChange={(e) => setFilterCategory(e.target.value)}
+                            />
+                        </div>
+                    </CardBody>
                 </Card>
 
-                {/* Items Table */}
-                <Card className="shadow-sm">
-                    <Card.Header className="bg-white border-bottom">
-                        <h5 className="mb-0">Items ({sortedItems.length})</h5>
-                    </Card.Header>
-                    <Card.Body className="p-0">
+                <Card>
+                    <CardHeader>
+                        <h5 className="font-bold text-lg">Items ({sortedItems.length})</h5>
+                    </CardHeader>
+                    <CardBody className="p-0">
                         {sortedItems.length === 0 ? (
-                            <div className="text-center text-muted py-5">
-                                <p className="mb-0">No items found for this issue</p>
+                            <div className="text-center text-gray-500 py-12">
+                                <p className="text-lg">No items found for this issue</p>
                             </div>
                         ) : (
                             <div className="table-responsive">
-                                <Table hover striped bordered className="mb-0">
-                                    <thead className="table-light">
+                                <table className="table">
+                                    <thead>
                                         <tr>
-                                            <th>SKU</th>
+                                            <th>Item Code</th>
                                             <th>Item Name</th>
                                             <th>Category</th>
                                             <th>Quantity</th>
@@ -397,32 +435,34 @@ function IssueDetailsPage() {
                                         {sortedItems.map((item) => (
                                             <tr key={`item-${item.id}`}>
                                                 <td>
-                                                    <code className="text-primary">{item.item_sku || '-'}</code>
+                                                    <code className="text-blue-600 font-mono text-sm">
+                                                        {item.item_code || '-'}
+                                                    </code>
                                                 </td>
                                                 <td>{item.item_name || '-'}</td>
                                                 <td>
                                                     {item.category_name ? (
-                                                        <Badge bg="secondary">{item.category_name}</Badge>
+                                                        <Badge variant="secondary">
+                                                            {getCategoryName(item.category_name)}
+                                                        </Badge>
                                                     ) : (
-                                                        <span className="text-muted">-</span>
+                                                        <span className="text-gray-500">-</span>
                                                     )}
                                                 </td>
-                                                <td>
-                                                    <span className="fw-bold">
-                                                        {item.qty
-                                                            ? parseFloat(item.qty.toString()).toFixed(2)
-                                                            : '0.00'}
-                                                    </span>
+                                                <td className="font-semibold">
+                                                    {item.qty
+                                                        ? parseFloat(item.qty.toString()).toFixed(2)
+                                                        : '0.00'}
                                                 </td>
                                                 <td title={item.unit_name || ''}>
                                                     {item.unit_symbol ? (
                                                         <span>{item.unit_symbol}</span>
                                                     ) : (
-                                                        <span className="text-muted">-</span>
+                                                        <span className="text-gray-500">-</span>
                                                     )}
                                                 </td>
-                                                <td>
-                                                    <span title={item.description || '-'}>
+                                                <td className="text-sm text-gray-600">
+                                                    <span className="block max-w-xs truncate" title={item.description || '-'}>
                                                         {item.description
                                                             ? item.description.substring(0, 40) +
                                                               (item.description.length > 40 ? '...' : '')
@@ -430,21 +470,19 @@ function IssueDetailsPage() {
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <Badge
-                                                        bg={item.active ? 'success' : 'danger'}
-                                                    >
+                                                    <Badge variant={item.active ? 'success' : 'danger'}>
                                                         {item.active ? 'Active' : 'Inactive'}
                                                     </Badge>
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
-                                </Table>
+                                </table>
                             </div>
                         )}
-                    </Card.Body>
+                    </CardBody>
                 </Card>
-            </Container>
+            </div>
         </div>
     );
 }

@@ -115,7 +115,7 @@ def get_issue_item(
 @router.post("/", response_model=IssueItemResponse, status_code=status.HTTP_201_CREATED)
 def create_issue_item(
     issue_item_data: IssueItemCreate,
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> IssueItemResponse:
     try:
         logger.info(
@@ -158,7 +158,7 @@ def create_issue_item(
 @router.post("/bulk", response_model=List[IssueItemResponse], status_code=status.HTTP_201_CREATED)
 def create_bulk_issue_items(
     bulk_data: IssueItemBulkCreate,
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> List[IssueItemResponse]:
     try:
         logger.info(
@@ -201,7 +201,7 @@ def create_bulk_issue_items(
 def update_issue_item(
     issue_item_data: IssueItemUpdate,
     issue_item_id: int = Path(..., gt=0, description="ID of the issue item to update"),
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> IssueItemResponse:
     try:
         logger.info(
@@ -242,7 +242,7 @@ def update_issue_item(
 @router.delete("/{issue_item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_issue_item(
     issue_item_id: int = Path(..., gt=0, description="ID of the issue item to delete"),
-    current_user: dict = Depends(require_role([UserRole.ADMIN, UserRole.STAFF]))
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> None:
     try:
         logger.info(

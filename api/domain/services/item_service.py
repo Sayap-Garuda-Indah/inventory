@@ -83,6 +83,10 @@ class ItemService:
             if not UnitsRepository.exists_by_id(item_data.unit_id):
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unit ID {item_data.unit_id} does not exist")
             
+            # Check by Item Code uniqueness
+            if ItemRepository.exists_by_item_code(item_data.item_code):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Item code {item_data.item_code} already exists")
+
             created_item = ItemRepository.create(item_data)
             if not created_item:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create item")
@@ -105,14 +109,15 @@ class ItemService:
             if not isinstance(item_id, int) or item_id <= 0:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid item ID")
             
+            # If item id is not found
             existing_item = ItemRepository.get_by_id(item_id)
             if not existing_item:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Item {item_id} not found")
-            
-            # Check SKU uniqueness if updating SKU
-            if item_data.sku and item_data.sku.strip().upper() != existing_item['sku']:
-                if ItemRepository.exists_by_sku(item_data.sku):
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"SKU {item_data.sku} already exists")
+
+            # Check Item Code uniqueness if updating Item Code
+            if item_data.item_code and item_data.item_code.strip().upper() != existing_item['item_code']:
+                if ItemRepository.exists_by_item_code(item_data.item_code):
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Item code {item_data.item_code} already exists")
                 
             # Validate category/unit if being updated
             if item_data.category_id and not CategoryRepository.exists_by_id(item_data.category_id):

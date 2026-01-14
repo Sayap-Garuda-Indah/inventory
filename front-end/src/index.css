@@ -1,70 +1,151 @@
-@import 'bootstrap/dist/css/bootstrap.min.css';
-@import 'bootstrap-icons/font/bootstrap-icons.min.css';
+@import "tailwindcss";
+/* @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap'); */
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+@theme {
+  --color-primary: #0d6efd;
+  --color-primary-dark: #0a58ca;
+  --color-secondary: #6c757d;
+  --color-success: #198754;
+  --color-danger: #dc3545;
+  --color-warning: #ffc107;
+  --color-info: #0dcaf0;
+  --color-background-light: #f8f9fa;
+  --color-background-dark: #121212;
+  --color-surface-light: #ffffff;
+  --color-surface-dark: #1e1e1e;
+  --color-sidebar-dark: #212529;
+  --color-border-light: #dee2e6;
+  --color-border-dark: #373737;
+  --color-text-light: #212529;
+  --color-text-dark: #e0e0e0;
+  --color-text-muted-light: #6c757d;
+  --color-text-muted-dark: #a0a0a0;
+
+  --font-sans: 'Inter', sans-serif;
 }
 
-html, body, #root {
+@layer base {
+  html, body, #root {
     height: 100%;
     width: 100%;
-}
+    overflow-x: hidden;
+  }
 
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans',
-        'Helvetica Neue', sans-serif;
+  body {
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    min-height: 100vh;
-}
+    background: #f8f9fa;
+    color: #212529;
+  }
 
-#root {
+  #root {
     display: flex;
     flex-direction: column;
+  }
 }
 
-.gradient-bg {
-    background: linear-gradient(135deg, #667eea, #754ba2 100%);
-}
+@layer components {
+  /* Card Components */
+  .card {
+    @apply bg-white rounded-md shadow-sm border border-gray-200;
+  }
 
-.card-shadow {
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.88);
-}
+  .card-shadow {
+    @apply shadow-sm border border-gray-200 rounded-md;
+  }
 
-.stat-card {
-    position: relative;
-    overflow: hidden;
-}
+  /* Stats Cards */
+  .stat-card {
+    @apply relative overflow-hidden;
+  }
 
-.stat-card::before {
+  .stat-card::before {
+    @apply absolute left-0 top-0 bottom-0 w-1;
     content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 5px;
-}
+  }
 
-.stat-card.total::before {
-    background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-}
+  .stat-card.total::before {
+    background: linear-gradient(to bottom, rgb(168, 85, 247), rgb(126, 34, 206));
+  }
 
-.stat-card.draft::before {
-    background: linear-gradient(180deg, #ffc107 0%, #ff9800 100%);
-}
+  .stat-card.draft::before {
+    background: linear-gradient(to bottom, rgb(234, 179, 8), rgb(249, 115, 22));
+  }
 
-.stat-card.approved::before {
-    background: linear-gradient(180deg, #17a2b8 0%, #20c997 100%);
-}
+  .stat-card.approved::before {
+    background: linear-gradient(to bottom, rgb(20, 184, 166), rgb(34, 197, 94));
+  }
 
-.stat-card.issued::before {
-    background: linear-gradient(180deg, #28a745 0%, #20c997 100%);
-}
+  .stat-card.issued::before {
+    background: linear-gradient(to bottom, rgb(34, 197, 94), rgb(21, 128, 61));
+  }
 
-.stat-card.cancelled::before {
-    background: linear-gradient(180deg, #6c757d 0%, #495057 100%);
+  .stat-card.cancelled::before {
+    background: linear-gradient(to bottom, rgb(107, 114, 128), rgb(55, 65, 81));
+  }
+
+  /* Button Base */
+  .ui-btn {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .ui-btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  .ui-btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+
+  /* Table Styles */
+  .table-responsive {
+    @apply overflow-x-auto;
+  }
+
+  .table {
+    @apply w-full border-collapse;
+  }
+
+  .table thead {
+    @apply bg-gray-50 border-b border-gray-200;
+  }
+
+  .table th {
+    @apply px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500;
+  }
+
+  .table td {
+    @apply px-6 py-4 text-sm text-gray-700 border-b border-gray-200;
+  }
+
+  .table-compact th {
+    @apply px-4 py-2;
+  }
+
+  .table-compact td {
+    @apply px-4 py-3;
+  }
+
+  .table-hover tbody tr:hover {
+    @apply bg-gray-50;
+  }
+
+  /* Form Elements */
+  .form-control {
+    @apply w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+
+  .form-label {
+    @apply block text-xs font-medium text-gray-500 mb-1;
+  }
+
+  .form-select {
+    @apply w-full px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white;
+  }
+
+  /* Utilities */
+  .gradient-bg {
+    @apply bg-gradient-to-r from-blue-500 to-blue-700;
+  }
 }

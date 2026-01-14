@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Container, Card, Form, Button, Alert } from 'react-bootstrap';
+import { Alert, Button, Card, CardBody, FormInput, Spinner } from './UI';
 
 function RegisterPage() {
     const [name, setName] = useState('');
@@ -40,84 +40,88 @@ function RegisterPage() {
     };
 
     return (
-        <div className="d-flex justify-content-center align-items-center min-vh-100 gradient-bg">
-            <Container className="w-100" style={{ maxWidth: '450px' }}>
-                <Card className="shadow-lg">
-                    <Card.Body className="p-5">
-                        <h1 className="h3 fw-bold mb-2 text-center">Create Account</h1>
-                        <p className="text-center text-muted mb-4">Register to access the Inventory Management System</p>
+        <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+            <div className="w-full max-w-lg">
+                <Card className="shadow-xl border border-gray-100">
+                    <CardBody className="p-8 md:p-10">
+                        <div className="text-center mb-8">
+                            <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">
+                                Create Account
+                            </h1>
+                            <p className="text-sm text-gray-500">
+                                Register to access the Inventory Management System
+                            </p>
+                        </div>
 
-                        {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
+                        {error && (
+                            <Alert variant="danger" dismissible onClose={() => setError('')} className="mb-6">
+                                {error}
+                            </Alert>
+                        )}
 
-                        <Form onSubmit={handleSubmit}>
-                            <Form.Group className="mb-3">
-                                <Form.Label>Full Name</Form.Label>
-                                <Form.Control
-                                    type="text"
-                                    placeholder="Your full name"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    required
-                                    minLength={1}
-                                    maxLength={120}
-                                    disabled={isLoading}
-                                />
-                            </Form.Group>
-
-                            <Form.Group className="mb-3">
-                                <Form.Label>Email</Form.Label>
-                                <Form.Control
-                                    type="email"
-                                    placeholder="you@example.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    disabled={isLoading}
-                                />
-                            </Form.Group>
-
-                            <Form.Group className="mb-3">
-                                <Form.Label>Password</Form.Label>
-                                <Form.Control
-                                    type="password"
-                                    placeholder="Enter your password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    minLength={8}
-                                    disabled={isLoading}
-                                />
-                            </Form.Group>
-
-                            <Form.Group className="mb-3">
-                                <Form.Label>Confirm Password</Form.Label>
-                                <Form.Control
-                                    type="password"
-                                    placeholder="Re-enter your password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    required
-                                    minLength={8}
-                                    disabled={isLoading}
-                                />
-                            </Form.Group>
-
-                            <Button
-                                variant="primary"
-                                type="submit"
-                                className="w-100 gradient-bg border-0"
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            <FormInput
+                                label="Full Name"
+                                type="text"
+                                placeholder="Your full name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                required
+                                minLength={1}
+                                maxLength={120}
                                 disabled={isLoading}
-                            >
-                                {isLoading ? 'Registering...' : 'Register'}
-                            </Button>
-                        </Form>
+                            />
+                            <FormInput
+                                label="Email"
+                                type="email"
+                                placeholder="you@example.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                disabled={isLoading}
+                            />
+                            <FormInput
+                                label="Password"
+                                type="password"
+                                placeholder="Enter your password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                minLength={8}
+                                disabled={isLoading}
+                            />
+                            <FormInput
+                                label="Confirm Password"
+                                type="password"
+                                placeholder="Re-enter your password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                required
+                                minLength={8}
+                                disabled={isLoading}
+                            />
 
-                        <p className="text-center mt-4 text-muted">
-                            Already have an account? <Link to="/login" className="text-decoration-none">Login here</Link>
+                            <Button variant="primary" type="submit" className="w-full" disabled={isLoading}>
+                                {isLoading ? (
+                                    <span className="inline-flex items-center">
+                                        <Spinner size="sm" className="mr-2" />
+                                        Registering...
+                                    </span>
+                                ) : (
+                                    'Register'
+                                )}
+                            </Button>
+                        </form>
+
+                        <p className="text-center mt-6 text-sm text-gray-500">
+                            Already have an account?{' '}
+                            <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+                                Login here
+                            </Link>
                         </p>
-                    </Card.Body>
+                    </CardBody>
                 </Card>
-            </Container>
+            </div>
         </div>
     );
 }

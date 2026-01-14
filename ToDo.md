@@ -3,48 +3,46 @@
 ## 1. Code Architecture & Organization
 
 ### Missing Core Components
-- [ ] ~~No Pydantic schemas for request/response validation in `schemas/`~~
-- [ ] ~~Missing domain services - business logic is scattered in routers~~
-- [ ] ~~No repository pattern - direct SQL queries in controllers~~
-- [ ] ~~Incomplete error handling - minimal validation and error responses~~
+- [x] No Pydantic schemas for request/response validation in `schemas/`
+- [x] Missing domain services - business logic is scattered in routers
+- [x] No repository pattern - direct SQL queries in controllers
+- [x] Incomplete error handling - minimal validation and error responses
 
 ## 2. Database Layer Issues
 
 ### Current Problems
-- [ ] ~~Mixed connection handling - both `db/pool.py` and `db/connection.py` exist~~
-- [ ] ~~No transaction management for complex operations~~
-- [ ] SQL injection risk - while parameterized, could be improved with query builder
+- [x] Mixed connection handling - both `db/pool.py` and `db/connection.py` exist
+- [x] No transaction management for complex operations
+- [x] SQL injection risk - while parameterized, could be improved with query builder
 
 ## 3. Security & Authentication
 
 ### Current Issues
 - [ ] Hardcoded credentials in `.env` file
-- [ ] ~~Missing input validation - direct dict usage in `app/routers/items.py`~~
-- [ ] No rate limiting or request size limits
-- [ ] CORS too permissive - allows all origins
+- [x] Missing input validation - direct dict usage in `app/routers/items.py`
+- [ ] CORS for internal network only
 
 ## 4. Configuration Management
 
 ### Issues
 - [ ] Sensitive data in version control - `.env` should be `.env.example`
-- [ ] Missing environment-specific configs
+- [x] Missing environment-specific configs
 - [ ] No secrets management
 
 ## 5. Error Handling & Logging
 
 ### Missing
-- [ ] Structured logging configuration
+- [x] ~~Structured logging configuration~~
 - [ ] Global exception handlers
-- [ ] Request/response logging
-- [ ] Health check improvements
+- [x] ~~Request/response logging~~
+- [x] ~~Health check improvements~~
 
 ## 6. Testing Infrastructure
 
 ### Completely Missing
-- [ ] Unit tests
 - [ ] Integration tests
 - [ ] Test database setup
-- [ ] API endpoint tests
+- [x] ~~API endpoint tests~~
 
 ## 7. API Documentation & Validation
 
@@ -53,36 +51,115 @@
 ## 8. Deployment & Operations
 
 ### Missing
-- [ ] Docker containerization
-- [ ] Database migrations (Alembic setup incomplete)
-- [ ] Environment health checks
+- [x] ~~Environment health checks~~
 - [ ] Monitoring endpoints
 
 ## 9. Database Schema Issues
 
 ### Problems in `inventory_ddl.sql`
-- [ ] Missing indexes for common queries
-- [ ] No data validation constraints
-- [ ] Missing audit timestamps on some tables
+- [x] Missing indexes for common queries
+- [x] ~~No data validation constraints~~
+- [x] Missing audit timestamps on some tables
 
 ## 10. Priority Implementation Order
 
 ### Immediate (Week 1)
-- [ ] ~~Add Pydantic schemas for request/response validation~~
-- [ ] ~~Fix security issues (remove `.env` from git, proper CORS)~~
-- [ ] ~~Add basic error handling~~
+- [x] ~~Add Pydantic schemas for request/response validation~~
+- [x] ~~Fix security issues (remove `.env` from git, proper CORS)~~
+- [x] ~~Add basic error handling~~
 
 ### Short-term (Week 2-3)
-- [ ] ~~Implement repository pattern~~
-- [ ] ~~Add domain services~~
+- [x] ~~Implement repository pattern~~
+- [x] ~~Add domain services~~
 - [ ] Set up proper testing framework
 
 ### Medium-term (Month 1)
-- [ ] Add comprehensive logging
+- [x] ~~Add comprehensive logging~~
 - [ ] Implement database migrations
-- [ ] Add monitoring and health checks
+- [x] ~~Add monitoring and health checks~~
 
 ### Long-term (Month 2+)
-- [ ] Add caching layer
-- [ ] Implement audit logging
+- [x] Implement audit logging
 - [ ] Add backup automation
+
+---
+# Frontend Refactoring Checklist: Bootstrap → Tailwind CSS
+
+## Phase 0: Setup (Complete First)
+- [x] `npm install -D tailwindcss postcss autoprefixer`
+- [x] `npm install lucide-react`
+- [x] `npx @tailwindcss/cli init -p`, using tailwind version 4.1.18
+- [x] Update `src/index.css` with Tailwind directives
+- [x] Update `src/main.tsx` (remove Bootstrap CSS, add index.css)
+
+## Phase 1: Shared UI Components (Week 1)
+- [x] Create `src/components/UI/` folder
+- [x] Create `Button.tsx`
+- [x] Create `Card.tsx` + exports
+- [x] Create `Badge.tsx`
+- [x] Create `Alert.tsx`
+- [x] Create `Modal.tsx`
+- [x] Create `Spinner.tsx`
+- [x] Create `index.ts` barrel export
+- [x] Create `Pagination.tsx`
+- [x] Create `Form.tsx` components
+- [x] Create icon mapping for `lucide-react`
+- [ ] Test all components in Storybook (optional)
+
+## Phase 2: Simple List Pages (Week 2)
+- [x] `CategoryPage.tsx` ⭐ START HERE (simplest)
+- [x] `UnitPage.tsx`
+- [x] `UsersPage.tsx`
+- [x] `ItemsPage.tsx`
+- [x] `Dashboard.tsx`
+- [x] Test search, filter, pagination on each
+
+## Phase 3: Layout & Navigation (Week 2)
+- [x] `Layout.tsx` (sidebar + responsive)
+- [x] Remove `Layout.css` (move to Tailwind)
+- [ ] Test desktop & mobile navigation
+- [ ] Verify sub-menu collapse/expand
+
+## Phase 4: Form Pages (Week 3)
+- [x] `CategoryPage.tsx` modal (if not done in Phase 2)
+- [x] `UnitPage.tsx` modal (if not done in Phase 2)
+- [x] `ItemFormPage.tsx`
+- [x] `IssueFormPage.tsx`
+- [x] `UserFormPage.tsx`
+- [x] `SettingsPage.tsx`
+
+## Phase 5: Complex Pages (Week 3)
+- [x] `Dashboard.tsx` (statistics + table)
+- [x] `IssueDetailsPage.tsx`
+- [x] `TransactionsPage.tsx`
+- [x] `TransactionFormPage.tsx`
+
+## Phase 6: Polish & Cleanup (Ongoing)
+- [ ] Remove Bootstrap imports
+- [ ] Remove unused CSS files
+- [ ] Update `main.tsx` (remove Bootstrap CSS)
+- [ ] Optimize Tailwind bundle
+- [ ] Test all responsive breakpoints
+- [ ] Cross-browser testing
+- [ ] Performance audit
+
+## Phase 7: Deployment
+- [ ] Merge to staging branch
+- [ ] Full QA testing
+- [ ] Deploy to production
+- [ ] Monitor for issues
+- [ ] Remove Bootstrap from `package.json`
+
+---
+
+## Migration Priority
+
+1. **High Priority** (do first): CategoryPage, UnitPage, Layout
+2. **Medium Priority**: ItemsPage, UsersPage, Forms
+3. **Low Priority**: Dashboard, IssueDetails (most complex)
+
+## Notes
+- Keep Bootstrap installed during migration
+- Can run both Bootstrap and Tailwind simultaneously
+- Test each component after migration
+- Commit frequently with small PRs
