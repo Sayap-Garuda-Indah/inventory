@@ -190,8 +190,10 @@ function UsersPage() {
             const bValue = b[sortConfig.key];
             let result = 0;
 
-            if (aValue instanceof Date && bValue instanceof Date) {
-                result = aValue.getTime() - bValue.getTime();
+            if (sortConfig.key === 'created_at') {
+                const aDate = aValue ? new Date(String(aValue)).getTime() : 0;
+                const bDate = bValue ? new Date(String(bValue)).getTime() : 0;
+                result = aDate - bDate;
             } else if (typeof aValue === 'number' && typeof bValue === 'number') {
                 result = aValue - bValue;
             } else {

@@ -134,3 +134,41 @@ class StockLevelsRepository:
             return result["count"] if result else 0
         except Exception as e:
             raise RuntimeError(str(e))
+
+    @staticmethod
+    def list_expected_by_location(location_id: int) -> List[Dict[str, Any]]:
+        try:
+            DatabaseUtils.validate_id(location_id, "Location")
+            query = """
+                    SELECT
+                        sl.item_id,
+                        sl.qty_on_hand,
+                        i.item_code,
+                        i.name,
+                        i.active
+                    FROM stock_levels sl
+                    JOIN items i ON sl.item_id = i.id
+                    WHERE sl.location_id = %s AND sl.qty_on_hand > 0
+                    """
+            params = (location_id,)
+            results = fetch_all(query, params)
+
+            return results
+        except Exception as e:
+            raise RuntimeError(str(e))
+
+    @staticmethod
+    def count_expected_items(location_id: int) -> int:
+        try:
+            DatabaseUtils.validate_id(location_id, "Location")
+            query = """
+                    SELECT COUNT(*) AS count
+                    FROM stock_levels
+                    WHERE location_id = %s AND qty_on_hand > 0
+                    """
+            params = (location_id,)
+            results = fetch_one(query, params)
+
+            return results["count"] if results else 0
+        except Exception as e:
+            raise RuntimeError(str(e))

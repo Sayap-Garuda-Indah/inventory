@@ -52,6 +52,11 @@ function Layout({ children }: LayoutProps) {
         adminItems.push({ path: '/settings', icon: 'bi-gear', label: 'Settings' });
     }
 
+    const auditItems: MenuItem[] = [];
+    if (user?.role === 'ADMIN' || user?.role === 'AUDITOR') {
+        auditItems.push({ path: '/audit', icon: 'bi-clipboard-check', label: 'Audit' });
+    }
+
     const isActive = (path: string) => location.pathname === path;
     const isItemsMenuActive = () => {
         return location.pathname === '/items' ||
@@ -147,12 +152,20 @@ function Layout({ children }: LayoutProps) {
                             <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Transaction</p>
                         </div>
                         {renderMenuItems(transactionItems)}
+                        {auditItems.length > 0 && (
+                            <>
+                                <div className="pt-2 pb-1">
+                                    <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Audit</p>
+                                </div>
+                                {renderMenuItems(auditItems, true)}
+                            </>
+                        )}
                         {adminItems.length > 0 && (
                             <>
                                 <div className="pt-2 pb-1">
                                     <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Admin</p>
                                 </div>
-                                {renderMenuItems(adminItems)}
+                                {renderMenuItems(adminItems, true)}
                             </>
                         )}
                     </nav>
@@ -243,6 +256,14 @@ function Layout({ children }: LayoutProps) {
                             <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Transaction</p>
                         </div>
                         {renderMenuItems(transactionItems, true)}
+                        {auditItems.length > 0 && (
+                            <>
+                                <div className="pt-2 pb-1">
+                                    <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Audit</p>
+                                </div>
+                                {renderMenuItems(auditItems, true)}
+                            </>
+                        )}
                         {adminItems.length > 0 && (
                             <>
                                 <div className="pt-2 pb-1">
