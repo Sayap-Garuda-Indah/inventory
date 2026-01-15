@@ -15,6 +15,7 @@ import CategoryPage from './components/CategoryPage';
 import UnitPage from './components/UnitPage';
 import TransactionsPage from './components/TransactionsPage';
 import TransactionFormPage from './components/TransactionFormPage';
+import LocationsPage from './components/LocationsPage';
 import AuditSessionsPage from './components/AuditSessionsPage';
 import AuditSessionDetailPage from './components/AuditSessionDetailPage';
 import AuditScanPage from './components/AuditScanPage';
@@ -136,6 +137,14 @@ function AppRoutes() {
                 element={
                     <PrivateRoute>
                         <TransactionFormPage />
+                    </PrivateRoute>
+                }
+            />
+            <Route
+                path="/locations"
+                element={
+                    <PrivateRoute allowedRoles={['ADMIN']}>
+                        <LocationsPage />
                     </PrivateRoute>
                 }
             />
