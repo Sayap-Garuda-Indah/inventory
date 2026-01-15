@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft } from 'lucide-react';
+import Select from 'react-select';
 import {
     Button,
     Card,
@@ -25,6 +26,11 @@ interface Item {
     id: number;
     item_code: string;
     name: string;
+}
+
+interface ItemSelectOption {
+    value: string;
+    label: string;
 }
 
 interface TransactionFormState {
@@ -70,20 +76,25 @@ function TransactionFormPage() {
                     fetch(`${API_BASE_URL}/locations?page=1&page_size=200`, {
                         headers: { 'Authorization': `Bearer ${token}` },
                     }),
-                    fetch(`${API_BASE_URL}/items?page=1&page_size=200`, {
+                    fetch(`${API_BASE_URL}/items?page=1&page_size=100&active_only=1`, {
                         headers: { 'Authorization': `Bearer ${token}` },
                     }),
                 ]);
 
-                if (locRes.ok) {
-                    const locData = await locRes.json();
-                    setLocations(locData || []);
+                if (!locRes.ok) {
+                    const err = await locRes.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Failed to load locations');
                 }
-                if (itemRes.ok) {
-                    const itemData = await itemRes.json();
-                    setItems(itemData.items || []);
+                if (!itemRes.ok) {
+                    const err = await itemRes.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Failed to load items');
                 }
+
+                const [locData, itemData] = await Promise.all([locRes.json(), itemRes.json()]);
+                setLocations(locData || []);
+                setItems(itemData.items || []);
             } catch (err) {
+                setError((err as Error).message || 'Failed to load form data');
                 console.error('Error loading metadata:', err);
             }
         };
@@ -142,13 +153,18 @@ function TransactionFormPage() {
         );
     }
 
-    const itemOptions = [
-        { value: '', label: 'Select item' },
-        ...items.map((item) => ({
-            value: String(item.id),
-            label: `${item.item_code} - ${item.name}`,
-        })),
-    ];
+    const itemOptions = useMemo<ItemSelectOption[]>(
+        () =>
+            items.map((item) => ({
+                value: String(item.id),
+                label: `${item.item_code} - ${item.name}`,
+            })),
+        [items]
+    );
+    const selectedItemOption = useMemo<ItemSelectOption | null>(() => {
+        if (!form.item_id) return null;
+        return itemOptions.find((option) => option.value === form.item_id) || null;
+    }, [form.item_id, itemOptions]);
 
     const locationOptions = [
         { value: '', label: 'Select location' },
@@ -193,13 +209,17 @@ function TransactionFormPage() {
                     <CardBody>
                         <form onSubmit={handleSubmit}>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <FormSelect
-                                    label="Item"
-                                    options={itemOptions}
-                                    value={form.item_id}
-                                    onChange={(e) => handleChange('item_id', e.target.value)}
-                                    required
-                                />
+                                <div>
+                                    <label className="form-label">Item</label>
+                                    <Select
+                                        options={itemOptions}
+                                        value={selectedItemOption}
+                                        onChange={(option) => handleChange('item_id', option ? option.value : '')}
+                                        isClearable
+                                        placeholder="Search item code or name"
+                                        classNamePrefix="react-select"
+                                    />
+                                </div>
                                 <FormSelect
                                     label="Location"
                                     options={locationOptions}
