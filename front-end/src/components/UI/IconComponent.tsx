@@ -31,6 +31,7 @@ import {
     XCircle,
     Archive,
     RotateCcw,
+    MapPin,
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 
@@ -76,6 +77,7 @@ const iconMap: Record<string, IconType> = {
     'bi-x-circle': XCircle,
     'bi-archive': Archive,
     'bi-archive-fill': RotateCcw,
+    'bi-geo-alt': MapPin,
 };
 
 export function IconComponent({
