@@ -60,6 +60,7 @@ Notes:
 - The MySQL schema is loaded from `api/db/schema.sql` on first boot.
 - Set strong passwords before production.
 - If Docker Desktop ignores the host binding, set `HOST_IP=0.0.0.0` and rely on Windows Firewall for access control.
+- For Docker Compose, only the root `.env` is required. Use `api/.env` and `front-end/.env` only for local (non-Docker) development.
 
 ## 4) Frontend Virtual Host (sgi-inventory.local)
 
@@ -122,7 +123,7 @@ If the user already exists, the script exits with a non-zero code, so only run i
 
 ## 10) GitHub CI/CD Workflow
 
-The workflow file is in `.github/workflows/ci-cd.yml`. It builds both images and deploys via SSH on every push to `main`.
+The workflow file is in `.github/workflows/ci-cd.yml`. It deploys via SSH on every push to `main`.
 
 ### Required GitHub Secrets
 
@@ -149,7 +150,35 @@ VITE_MSAL_REDIRECT_URI=
    ```
 2. Ensure `/home/<wsl-user>/inventory` is a git clone with the correct remote.
 3. Create and keep the `.env` file on the server (the workflow does not overwrite it).
-4. Add the deploy key to `/home/<wsl-user>/.ssh/authorized_keys`.
+4. Create a dedicated SSH key for GitHub Actions (in WSL):
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/inventory_ci -C "inventory-ci"
+   ```
+5. Add the public key to `/home/<wsl-user>/.ssh/authorized_keys`:
+   ```bash
+   cat ~/.ssh/inventory_ci.pub >> /home/<wsl-user>/.ssh/authorized_keys
+   ```
+6. Store the private key from `~/.ssh/inventory_ci` in the GitHub secret `DEPLOY_SSH_KEY`.
+
+Note: the server still needs access to `git pull`. For private repos, configure a separate deploy key or a PAT on the server.
 
 After pushing to `main`, the workflow will `git pull` and run:
 `docker compose -f docker-compose.yaml up -d --build`.
+
+### GitHub CI/CD Setup (Step-by-Step)
+
+1. Push the repo to GitHub and ensure your default branch is `main`.
+2. Add the workflow file to the repo:
+   - Verify `.github/workflows/ci-cd.yml` exists in the repo.
+3. Add required secrets:
+   - GitHub -> Repo -> Settings -> Secrets and variables -> Actions -> New repository secret.
+   - Add all keys listed in **Required GitHub Secrets** above.
+4. Ensure the deploy host is reachable from GitHub Actions:
+   - Open port `22` (or your `DEPLOY_PORT`) in Windows Firewall for GitHub Actions IPs, or allow `0.0.0.0/0` if you accept broader access.
+   - Confirm WSL SSH is running and reachable: `ssh <ssh-user>@192.168.10.54 -p <port>`.
+5. Trigger a deployment:
+   - Push a commit to `main`, or
+   - GitHub -> Actions -> Deploy -> Run workflow.
+6. Verify on the server:
+   - `docker compose ps`
+   - `docker compose logs -f api`
