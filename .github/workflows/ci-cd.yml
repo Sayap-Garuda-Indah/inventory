@@ -1,4 +1,4 @@
-name: CI/CD
+name: Deploy
 
 on:
   push:
@@ -6,30 +6,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build backend image
-        run: docker build -t inventory-api ./api
-      - name: Build frontend image
-        env:
-          VITE_API_BASE_URL: /api
-          VITE_MSAL_CLIENT_ID: ${{ secrets.VITE_MSAL_CLIENT_ID }}
-          VITE_MSAL_TENANT_ID: ${{ secrets.VITE_MSAL_TENANT_ID }}
-          VITE_MSAL_REDIRECT_URI: ${{ secrets.VITE_MSAL_REDIRECT_URI }}
-        run: |
-          docker build \
-            --build-arg VITE_API_BASE_URL="$VITE_API_BASE_URL" \
-            --build-arg VITE_MSAL_CLIENT_ID="$VITE_MSAL_CLIENT_ID" \
-            --build-arg VITE_MSAL_TENANT_ID="$VITE_MSAL_TENANT_ID" \
-            --build-arg VITE_MSAL_REDIRECT_URI="$VITE_MSAL_REDIRECT_URI" \
-            -t inventory-frontend ./front-end
-
   deploy:
-    needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    concurrency:
+      group: deploy-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -39,7 +21,6 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ secrets.DEPLOY_PORT }}
           script: |
-            set -e
             cd ${{ secrets.DEPLOY_PATH }}
-            git pull
+            git pull --ff-only
             docker compose -f docker-compose.yaml up -d --build
