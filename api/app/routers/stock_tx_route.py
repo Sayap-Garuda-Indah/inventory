@@ -10,7 +10,8 @@ from core.logging import get_logger
 logger = get_logger(__name__)
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
-@router.get("/", response_model=StockTxListResponse)
+@router.get("", response_model=StockTxListResponse)
+@router.get("/", response_model=StockTxListResponse, include_in_schema=False)
 def list_transactions(
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(50, ge=1, le=100, description="Number of transactions per page"),

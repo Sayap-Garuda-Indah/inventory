@@ -12,7 +12,7 @@ class User(BaseModel):
     email: EmailStr = Field(..., description="The email address of the user")
     name: str = Field(..., min_length=1, max_length=120, description="The full name of the user")
     role: UserRole = Field(default=UserRole.STAFF, description="The role of the user within the system")
-    active: int = Field(default=1, description="Indicates if the user is active")
+    active: bool = Field(default=True, description="Indicates if the user is active")
 
 class UserCreate(User):
     email: EmailStr = Field(..., description="The email address for the user account")
@@ -32,7 +32,7 @@ class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=120)
     email: Optional[EmailStr] = None
     role: Optional[UserRole] = None
-    active: Optional[int] = None
+    active: Optional[bool] = None
     password: Optional[str] = Field(None, min_length=8)
 
 class UserResponse(User):

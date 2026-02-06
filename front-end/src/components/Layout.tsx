@@ -45,6 +45,9 @@ function Layout({ children }: LayoutProps) {
     const transactionItems: MenuItem[] = [
         { path: '/transactions', icon: 'bi-receipt', label: 'Transactions' },
     ];
+    if (user?.role === 'ADMIN') {
+        transactionItems.push({ path: '/locations', icon: 'bi-geo-alt', label: 'Locations' });
+    }
 
     const adminItems: MenuItem[] = [];
     if (user?.role === 'ADMIN') {
