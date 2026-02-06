@@ -87,11 +87,11 @@ def update_location(
         logger.error("Failed to update location", extra={"error": str(e), "location_id": location_id})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-@router.delete("/{location_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{location_id}", status_code=status.HTTP_200_OK)
 def delete_location(
     location_id: int = Path(..., gt=0, description="The ID of the location to delete"),
     current_user=Depends(require_role(UserRole.ADMIN))
-) -> None:
+) -> dict:
     try:
         logger.info(
             "Location deletion requested",
@@ -100,7 +100,7 @@ def delete_location(
                 "location_id": location_id
             }
         )
-        LocationService.delete_location(location_id)
+        return LocationService.delete_location(location_id)
     except HTTPException:
         raise
     except Exception as e:

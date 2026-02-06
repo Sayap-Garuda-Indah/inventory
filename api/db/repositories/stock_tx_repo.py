@@ -3,6 +3,8 @@ from db.pool import fetch_all, fetch_one, execute
 from db.base import QueryBuilder, DatabaseUtils
 
 class StockTxRepository:
+    DELETED_NOTE_PREFIX = "__deleted__"
+
     @staticmethod
     def get_by_id(tx_id: int) -> Optional[Dict[str, Any]]:
         try:
@@ -25,8 +27,9 @@ class StockTxRepository:
                 JOIN items i ON st.item_id = i.id
                 JOIN locations l ON st.location_id = l.id
                 WHERE st.id = %s
+                  AND (st.note IS NULL OR st.note NOT LIKE %s)
             """
-            return fetch_one(query, (tx_id,))
+            return fetch_one(query, (tx_id, f"{StockTxRepository.DELETED_NOTE_PREFIX}%"))
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -40,8 +43,8 @@ class StockTxRepository:
         search: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         try:
-            conditions = []
-            params = []
+            conditions = ["(st.note IS NULL OR st.note NOT LIKE %s)"]
+            params = [f"{StockTxRepository.DELETED_NOTE_PREFIX}%"]
 
             if item_id:
                 conditions.append("st.item_id = %s")
@@ -102,8 +105,8 @@ class StockTxRepository:
         search: Optional[str] = None
     ) -> int:
         try:
-            conditions = []
-            params = []
+            conditions = ["(st.note IS NULL OR st.note NOT LIKE %s)"]
+            params = [f"{StockTxRepository.DELETED_NOTE_PREFIX}%"]
 
             if item_id:
                 conditions.append("st.item_id = %s")
@@ -195,8 +198,21 @@ class StockTxRepository:
     def delete(tx_id: int) -> bool:
         try:
             DatabaseUtils.validate_id(tx_id, "Transaction")
-            query = "DELETE FROM stock_tx WHERE id = %s"
-            rows = execute(query, (tx_id,))
+            existing = fetch_one("SELECT note FROM stock_tx WHERE id = %s", (tx_id,))
+            if not existing:
+                return False
+
+            deleted_note = (
+                f"{StockTxRepository.DELETED_NOTE_PREFIX} "
+                f"{existing.get('note') or ''}"
+            ).strip()
+            query = """
+                UPDATE stock_tx
+                SET note = %s
+                WHERE id = %s
+                  AND (note IS NULL OR note NOT LIKE %s)
+            """
+            rows = execute(query, (deleted_note[:255], tx_id, f"{StockTxRepository.DELETED_NOTE_PREFIX}%"))
             return rows > 0
         except Exception as e:
             raise RuntimeError(str(e))

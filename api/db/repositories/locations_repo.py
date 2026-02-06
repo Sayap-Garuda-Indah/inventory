@@ -4,6 +4,8 @@ from db.base import QueryBuilder, DatabaseUtils, BaseRepository, DatabaseConstan
 from schemas.locations import LocationCreate, LocationUpdate
 
 class LocationsRepository:
+    DELETED_TX_NOTE_PREFIX = "__deleted__"
+
     @staticmethod
     def get_all(
         active_only: bool = True,
@@ -161,8 +163,44 @@ class LocationsRepository:
     def delete(location_id: int) -> bool:
         try:
             DatabaseUtils.validate_id(location_id, "Location")
-            query = "DELETE FROM locations WHERE id = %s"
+            query = "UPDATE locations SET active = 0 WHERE id = %s AND active = 1"
             rows = execute(query, (location_id,))
             return rows > 0
+        except Exception as e:
+            raise RuntimeError(str(e))
+
+    @staticmethod
+    def get_dependency_summary(location_id: int) -> Dict[str, int]:
+        try:
+            DatabaseUtils.validate_id(location_id, "Location")
+
+            stock_levels = fetch_one(
+                "SELECT COUNT(*) AS count FROM stock_levels WHERE location_id = %s",
+                (location_id,),
+            )
+            stock_transactions = fetch_one(
+                """
+                SELECT COUNT(*) AS count
+                FROM stock_tx
+                WHERE location_id = %s
+                  AND (note IS NULL OR note NOT LIKE %s)
+                """,
+                (location_id, f"{LocationsRepository.DELETED_TX_NOTE_PREFIX}%"),
+            )
+            audit_sessions = fetch_one(
+                "SELECT COUNT(*) AS count FROM audit_sessions WHERE location_id = %s",
+                (location_id,),
+            )
+            audit_scans = fetch_one(
+                "SELECT COUNT(*) AS count FROM audit_scans WHERE location_id = %s",
+                (location_id,),
+            )
+
+            return {
+                "stock_levels": int(stock_levels["count"]) if stock_levels else 0,
+                "stock_transactions": int(stock_transactions["count"]) if stock_transactions else 0,
+                "audit_sessions": int(audit_sessions["count"]) if audit_sessions else 0,
+                "audit_scans": int(audit_scans["count"]) if audit_scans else 0,
+            }
         except Exception as e:
             raise RuntimeError(str(e))

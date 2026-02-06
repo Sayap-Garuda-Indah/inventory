@@ -174,7 +174,7 @@ def update_user(
 def delete_user(
     user_id: int = Path(..., description="The ID of the user to delete"),
     current_user=Depends(require_role(UserRole.ADMIN))
-) -> None:
+) -> dict:
     """
     Delete a user.
     """
@@ -194,7 +194,7 @@ def delete_user(
                 detail="Users cannot delete their own account."
             )
         
-        UserService.delete_user(user_id)
+        result = UserService.delete_user(user_id)
 
         logger.info(
             "User deleted successfully",
@@ -204,7 +204,7 @@ def delete_user(
             }
         )
 
-        return None
+        return result
     except HTTPException:
         raise
     except Exception as e:

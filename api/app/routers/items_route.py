@@ -167,11 +167,11 @@ def update_item(
         logger.error(f"Error updating item {item_id}: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {str(e)}")
     
-@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.delete("/{item_id}", status_code=status.HTTP_200_OK, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def delete_item(
     item_id: int = Path(..., gt=0, description="The ID of the item to delete"),
     current_user: UserRole = Depends(require_role(UserRole.ADMIN))
-) -> None:
+) -> dict:
     try:
         logger.info(
             "Item deletion requested",
@@ -181,7 +181,7 @@ def delete_item(
             }
         )
 
-        ItemService.delete_item(item_id)
+        result = ItemService.delete_item(item_id)
 
         logger.info(
             "Item deleted successfully",
@@ -190,6 +190,7 @@ def delete_item(
                 "item_id": item_id
             }
         )
+        return result
     except HTTPException:
         raise
     except Exception as e:

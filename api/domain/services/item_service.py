@@ -145,17 +145,44 @@ class ItemService:
         Soft delete an item by setting its active status to False.
         """
         try:
+            if not isinstance(item_id, int) or item_id <= 0:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid item ID")
+
             existing_item = ItemRepository.get_by_id(item_id)
             if not existing_item:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Item {item_id} not found")
+
+            if existing_item.get("active") in (False, 0):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Item {item_id} is already inactive")
+
+            dependencies = ItemRepository.get_dependency_summary(item_id)
             
             success = ItemRepository.delete(item_id)
             if not success:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete item")
             
-            logger.info(f"Item with ID {existing_item['sku']} deleted (soft delete)")
+            logger.info(
+                "Item soft-deleted successfully",
+                extra={
+                    "item_id": item_id,
+                    "item_code": existing_item["item_code"],
+                    "dependencies": dependencies,
+                }
+            )
 
-            message = {"message": f"Item {existing_item['name']} (ID: {item_id}) with SKU {existing_item['sku']} has been deleted."}
+            total_dependencies = sum(dependencies.values())
+            warning = None
+            if total_dependencies > 0:
+                warning = (
+                    f"Related records remain for history (issue items, stock levels, "
+                    f"stock transactions, scans): {total_dependencies}."
+                )
+
+            message = {
+                "message": f"Item {existing_item['name']} (ID: {item_id}, code: {existing_item['item_code']}) has been deactivated.",
+                "warning": warning,
+                "dependencies": dependencies,
+            }
 
             return message
         except HTTPException:

@@ -272,6 +272,8 @@ class UserService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"User with ID {user_id} is already inactive."
                 )
+
+            dependencies = UserRepository.get_dependency_summary(user_id)
             
             success = UserRepository.delete(user_id)
             if not success:
@@ -279,8 +281,20 @@ class UserService:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to delete user."
                 )
-            
-            response = {"message": f"User {existing_user['name']} has been deactivated."}
+
+            total_dependencies = sum(dependencies.values())
+            warning = None
+            if total_dependencies > 0:
+                warning = (
+                    "This user still has related records and remains as historical reference "
+                    f"(items/issues/transactions/logs total: {total_dependencies})."
+                )
+
+            response = {
+                "message": f"User {existing_user['name']} has been deactivated.",
+                "warning": warning,
+                "dependencies": dependencies,
+            }
             
             return response
         except HTTPException:
