@@ -30,7 +30,8 @@ def get_settings(current_user= Depends(require_role(UserRole.ADMIN))) -> Setting
         logger.error(f"Error retrieving settings: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve settings.")
     
-@router.put("/", response_model=SettingsResponse)
+@router.put("", response_model=SettingsResponse)
+@router.put("/", response_model=SettingsResponse, include_in_schema=False)
 def update_settings(
     settings_data: SettingsUpdate,
     current_user= Depends(require_role(UserRole.ADMIN))

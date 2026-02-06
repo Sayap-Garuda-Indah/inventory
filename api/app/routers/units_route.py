@@ -97,7 +97,8 @@ def get_unit(
             detail=str(e)
         )
 
-@router.post("/", response_model=UnitResponse)
+@router.post("", response_model=UnitResponse)
+@router.post("/", response_model=UnitResponse, include_in_schema=False)
 def create_unit(
     unit_data: UnitCreate,
     current_user=Depends(require_role(UserRole.ADMIN))

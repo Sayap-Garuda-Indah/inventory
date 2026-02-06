@@ -92,7 +92,8 @@ def get_category(
         )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-@router.post("/", response_model=Category, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Category, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=Category, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 def create_category(
     category_data: CategoryCreate,
     current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
