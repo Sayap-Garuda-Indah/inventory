@@ -113,7 +113,8 @@ def get_issue_item(
         )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
-@router.post("/", response_model=IssueItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=IssueItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=IssueItemResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 def create_issue_item(
     issue_item_data: IssueItemCreate,
     current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))

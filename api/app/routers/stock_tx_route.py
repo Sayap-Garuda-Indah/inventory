@@ -72,7 +72,8 @@ def list_stock_levels(
         logger.error("Failed to list stock levels", extra={"error": str(e)})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-@router.post("/", response_model=StockTxResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=StockTxResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=StockTxResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 def create_transaction(
     tx_data: StockTxCreate,
     current_user=Depends(require_role(UserRole.ADMIN, UserRole.STAFF))

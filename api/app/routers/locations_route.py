@@ -45,7 +45,8 @@ def get_location(
         logger.error("Failed to retrieve location", extra={"error": str(e), "location_id": location_id})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-@router.post("/", response_model=Location, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Location, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=Location, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 def create_location(
     location_data: LocationCreate,
     current_user=Depends(require_role(UserRole.ADMIN))

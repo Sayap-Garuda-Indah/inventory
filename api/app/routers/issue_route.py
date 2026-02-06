@@ -225,7 +225,8 @@ def get_issue_items_detailed(
     """
     return get_issue_items_details(issue_id, current_user)
 
-@router.post("/", response_model=IssueResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=IssueResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=IssueResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 def create_issue(
     issue_data: IssueCreate,
     current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))

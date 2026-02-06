@@ -77,7 +77,8 @@ def get_user(
             detail=str(e)
         )
 
-@router.post("/register", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.post("", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.post("/register", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))], include_in_schema=False)
 def create_user(
     user_data: UserCreate,
     current_user=Depends(require_role(UserRole.ADMIN))

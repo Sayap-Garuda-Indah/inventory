@@ -96,7 +96,8 @@ def get_item(
         )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-@router.post("/", response_model=ItemResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.STAFF))])
+@router.post("", response_model=ItemResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.STAFF))])
+@router.post("/", response_model=ItemResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.STAFF))], include_in_schema=False)
 def create_item(
     item_data: ItemCreate,
     current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
