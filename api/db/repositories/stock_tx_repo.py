@@ -4,6 +4,8 @@ from db.base import QueryBuilder, DatabaseUtils
 
 class StockTxRepository:
     DELETED_NOTE_PREFIX = "__deleted__"
+    DELETED_LOCATION_NAME_PATTERN = "__deleted__%"
+    DELETED_LOCATION_CODE_PATTERN = "DEL_%"
 
     @staticmethod
     def get_by_id(tx_id: int) -> Optional[Dict[str, Any]]:
@@ -13,10 +15,10 @@ class StockTxRepository:
                 SELECT
                     st.id,
                     st.item_id,
-                    i.item_code,
-                    i.name AS item_name,
+                    COALESCE(i.item_code, '-') AS item_code,
+                    COALESCE(i.name, '-') AS item_name,
                     st.location_id,
-                    l.name AS location_name,
+                    COALESCE(l.name, '-') AS location_name,
                     st.tx_type,
                     st.qty,
                     st.ref,
@@ -24,12 +26,26 @@ class StockTxRepository:
                     st.tx_at,
                     st.user_id
                 FROM stock_tx st
-                JOIN items i ON st.item_id = i.id
-                JOIN locations l ON st.location_id = l.id
+                LEFT JOIN items i
+                    ON st.item_id = i.id
+                   AND i.active = 1
+                LEFT JOIN locations l
+                    ON st.location_id = l.id
+                   AND l.active = 1
+                   AND l.name NOT LIKE %s
+                   AND l.code NOT LIKE %s
                 WHERE st.id = %s
                   AND (st.note IS NULL OR st.note NOT LIKE %s)
             """
-            return fetch_one(query, (tx_id, f"{StockTxRepository.DELETED_NOTE_PREFIX}%"))
+            return fetch_one(
+                query,
+                (
+                    StockTxRepository.DELETED_LOCATION_NAME_PATTERN,
+                    StockTxRepository.DELETED_LOCATION_CODE_PATTERN,
+                    tx_id,
+                    f"{StockTxRepository.DELETED_NOTE_PREFIX}%",
+                ),
+            )
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -44,7 +60,7 @@ class StockTxRepository:
     ) -> List[Dict[str, Any]]:
         try:
             conditions = ["(st.note IS NULL OR st.note NOT LIKE %s)"]
-            params = [f"{StockTxRepository.DELETED_NOTE_PREFIX}%"]
+            params: List[Any] = [f"{StockTxRepository.DELETED_NOTE_PREFIX}%"]
 
             if item_id:
                 conditions.append("st.item_id = %s")
@@ -71,10 +87,10 @@ class StockTxRepository:
                 SELECT
                     st.id,
                     st.item_id,
-                    i.item_code,
-                    i.name AS item_name,
+                    COALESCE(i.item_code, '-') AS item_code,
+                    COALESCE(i.name, '-') AS item_name,
                     st.location_id,
-                    l.name AS location_name,
+                    COALESCE(l.name, '-') AS location_name,
                     st.tx_type,
                     st.qty,
                     st.ref,
@@ -83,14 +99,24 @@ class StockTxRepository:
                     st.user_id,
                     sl.qty_on_hand
                 FROM stock_tx st
-                JOIN items i ON st.item_id = i.id
-                JOIN locations l ON st.location_id = l.id
+                LEFT JOIN items i
+                    ON st.item_id = i.id
+                   AND i.active = 1
+                LEFT JOIN locations l
+                    ON st.location_id = l.id
+                   AND l.active = 1
+                   AND l.name NOT LIKE %s
+                   AND l.code NOT LIKE %s
                 LEFT JOIN stock_levels sl
                     ON sl.item_id = st.item_id AND sl.location_id = st.location_id
                 {where_clause}
                 ORDER BY st.tx_at DESC
                 LIMIT %s OFFSET %s
             """
+            params = [
+                StockTxRepository.DELETED_LOCATION_NAME_PATTERN,
+                StockTxRepository.DELETED_LOCATION_CODE_PATTERN,
+            ] + params
             params.extend([page_size, offset])
 
             return fetch_all(query, tuple(params))
@@ -106,7 +132,7 @@ class StockTxRepository:
     ) -> int:
         try:
             conditions = ["(st.note IS NULL OR st.note NOT LIKE %s)"]
-            params = [f"{StockTxRepository.DELETED_NOTE_PREFIX}%"]
+            params: List[Any] = [f"{StockTxRepository.DELETED_NOTE_PREFIX}%"]
 
             if item_id:
                 conditions.append("st.item_id = %s")
@@ -131,10 +157,20 @@ class StockTxRepository:
             query = f"""
                 SELECT COUNT(*) AS count
                 FROM stock_tx st
-                JOIN items i ON st.item_id = i.id
-                JOIN locations l ON st.location_id = l.id
+                LEFT JOIN items i
+                    ON st.item_id = i.id
+                   AND i.active = 1
+                LEFT JOIN locations l
+                    ON st.location_id = l.id
+                   AND l.active = 1
+                   AND l.name NOT LIKE %s
+                   AND l.code NOT LIKE %s
                 {where_clause}
             """
+            params = [
+                StockTxRepository.DELETED_LOCATION_NAME_PATTERN,
+                StockTxRepository.DELETED_LOCATION_CODE_PATTERN,
+            ] + params
             result = fetch_one(query, tuple(params))
             return result["count"] if result else 0
         except Exception as e:

@@ -15,8 +15,8 @@ class CategoryRepository:
         search: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         try:
-            conditions = ["name NOT LIKE %s"]
-            params = [f"{CategoryRepository.DELETED_NAME_PREFIX}%"]
+            conditions = ["name NOT LIKE %s", "name != %s"]
+            params = [f"{CategoryRepository.DELETED_NAME_PREFIX}%", CategoryRepository.FALLBACK_CATEGORY_NAME]
 
             search_term = DatabaseUtils.sanitize_search_term(search)
             search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["name"])

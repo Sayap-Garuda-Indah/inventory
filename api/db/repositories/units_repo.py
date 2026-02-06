@@ -18,8 +18,8 @@ class UnitsRepository:
         search: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         try:
-            conditions = ["name NOT LIKE %s"]
-            params = [f"{UnitsRepository.DELETED_NAME_PREFIX}%"]
+            conditions = ["name NOT LIKE %s", "name != %s"]
+            params = [f"{UnitsRepository.DELETED_NAME_PREFIX}%", UnitsRepository.FALLBACK_UNIT_NAME]
 
             search_term = DatabaseUtils.sanitize_search_term(search)
             search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["name", "symbol"])
@@ -46,8 +46,8 @@ class UnitsRepository:
     @staticmethod
     def count(search: Optional[str] = None) -> int:
         try:
-            conditions = ["name NOT LIKE %s"]
-            params = [f"{UnitsRepository.DELETED_NAME_PREFIX}%"]
+            conditions = ["name NOT LIKE %s", "name != %s"]
+            params = [f"{UnitsRepository.DELETED_NAME_PREFIX}%", UnitsRepository.FALLBACK_UNIT_NAME]
 
             search_term = DatabaseUtils.sanitize_search_term(search)
             search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["name", "symbol"])

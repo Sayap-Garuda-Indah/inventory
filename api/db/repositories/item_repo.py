@@ -282,7 +282,14 @@ class ItemRepository:
         """
         try:
             DatabaseUtils.validate_id(item_id, "Item")
-            return BaseRepository.exists_by_field(DatabaseConstants.TABLE_ITEMS, "id", item_id)
+            query = """
+                SELECT 1
+                FROM items
+                WHERE id = %s AND active = 1
+                LIMIT 1
+            """
+            result = fetch_one(query, (item_id,))
+            return result is not None
         except Exception as e:
             raise RuntimeError(str(e))
         
