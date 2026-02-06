@@ -11,7 +11,8 @@ from schemas.units import UnitCreate, UnitUpdate, UnitResponse, UnitListResponse
 logger = get_logger(__name__)
 router = APIRouter(prefix="/units", tags=["units"])
 
-@router.get("/", response_model=UnitListResponse)
+@router.get("", response_model=UnitListResponse)
+@router.get("/", response_model=UnitListResponse, include_in_schema=False)
 def list_units(
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(10, ge=1, le=100, description="Number of units per page"),
@@ -225,4 +226,3 @@ def delete_unit(
         )
     
     return None
-

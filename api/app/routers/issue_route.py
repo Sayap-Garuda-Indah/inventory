@@ -38,7 +38,8 @@ def get_issue_statistics(current_user: dict = Depends(get_current_user)) -> dict
         )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-@router.get("/", response_model=IssueListResponse)
+@router.get("", response_model=IssueListResponse)
+@router.get("/", response_model=IssueListResponse, include_in_schema=False)
 def list_issues(
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(50, ge=1, le=100, description="Number of issues per page"),

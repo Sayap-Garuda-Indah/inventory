@@ -9,7 +9,8 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
-@router.get("/", response_model=SettingsResponse)
+@router.get("", response_model=SettingsResponse)
+@router.get("/", response_model=SettingsResponse, include_in_schema=False)
 def get_settings(current_user= Depends(require_role(UserRole.ADMIN))) -> SettingsResponse:
     """
     Retrieve application settings. Accessible only by ADMIN users.

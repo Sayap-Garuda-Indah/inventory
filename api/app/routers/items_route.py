@@ -9,7 +9,8 @@ from schemas.items import ItemResponse, ItemListResponse, ItemCreate, ItemUpdate
 logger = get_logger(__name__)
 router = APIRouter(prefix="/items", tags=["Items"])
 
-@router.get("/", response_model=ItemListResponse)
+@router.get("", response_model=ItemListResponse)
+@router.get("/", response_model=ItemListResponse, include_in_schema=False)
 def list_items(
     active_only: int = Query(1, description="Filter to only active items"),
     page: int = Query(1, ge=1, description="Page number for pagination"),
