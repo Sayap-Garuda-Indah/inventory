@@ -15,7 +15,8 @@ from schemas.issue_items import (
 logger = get_logger(__name__)
 router = APIRouter(prefix="/issue-items", tags=["Issue Items"])
 
-@router.get("/", response_model=IssueItemListResponse)
+@router.get("", response_model=IssueItemListResponse)
+@router.get("/", response_model=IssueItemListResponse, include_in_schema=False)
 def list_issue_items(
     issue_id: Optional[int] = Query(None, description="Filter by issue ID"),
     item_id: Optional[int] = Query(None, description="Filter by item ID"),

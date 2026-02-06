@@ -10,7 +10,8 @@ from core.logging import get_logger
 logger = get_logger(__name__)
 router = APIRouter(prefix="/locations", tags=["Locations"])
 
-@router.get("/", response_model=list[Location])
+@router.get("", response_model=list[Location])
+@router.get("/", response_model=list[Location], include_in_schema=False)
 def list_locations(
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(100, ge=1, le=200, description="Number of locations per page"),
