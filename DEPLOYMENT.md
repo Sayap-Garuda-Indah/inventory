@@ -1,6 +1,6 @@
 # Deployment Guide (Docker Desktop on Windows 10 with WSL2)
 
-This guide deploys the Inventory app to a Docker host at `192.168.10.54` with three containers (MySQL, API, Frontend), restricts access to the local network, and sets up a virtual host at `sgi-inventory.local`.
+This guide deploys the Inventory app to a Docker host at `192.168.10.64` with three containers (MySQL, API, Frontend), restricts access to the local network, and sets up a virtual host at `sgi-inventory.local`.
 
 ## 1) Prepare the Windows 10 Server (Docker Desktop + WSL2)
 
@@ -12,7 +12,7 @@ This guide deploys the Inventory app to a Docker host at `192.168.10.54` with th
 2. Install Docker Desktop for Windows and enable:
    - Settings -> General -> "Use the WSL 2 based engine"
    - Settings -> Resources -> WSL Integration -> enable your distro
-3. Ensure the server IP is `192.168.10.54`.
+3. Ensure the server IP is `192.168.10.64`.
 
 ## 2) Clone the Repository
 
@@ -29,7 +29,7 @@ Create a root `.env` file for Docker Compose:
 
 ```bash
 cat > .env <<'EOF'
-HOST_IP=192.168.10.54
+HOST_IP=192.168.10.64
 
 MYSQL_ROOT_PASSWORD=change-me
 DB_NAME=inventory
@@ -97,12 +97,12 @@ New-NetFirewallRule -DisplayName "Inventory API (192.168.10.21)" -Direction Inbo
 
 Add `sgi-inventory.local` so users do not need the IP address.
 
-Option A (recommended): create a local DNS entry pointing `sgi-inventory.local` to `192.168.10.54`.
+Option A (recommended): create a local DNS entry pointing `sgi-inventory.local` to `192.168.10.64`.
 
 Option B (per-device hosts file):
 - Linux/macOS: add to `/etc/hosts`
   ```
-  192.168.10.54 sgi-inventory.local
+  192.168.10.64 sgi-inventory.local
   ```
 - Windows: add to `C:\Windows\System32\drivers\etc\hosts`
 
@@ -119,7 +119,7 @@ If the user already exists, the script exits with a non-zero code, so only run i
 ## 9) Verify
 
 - Frontend: `http://sgi-inventory.local/`
-- Backend health (from allowed IPs): `http://192.168.10.54:8000/health`
+- Backend health (from allowed IPs): `http://192.168.10.64:8000/health`
 
 ## 10) GitHub CI/CD Workflow
 
@@ -128,11 +128,11 @@ The workflow file is in `.github/workflows/ci-cd.yml`. It deploys via SSH on eve
 ### Required GitHub Secrets
 
 ```
-DEPLOY_HOST=192.168.10.54
-DEPLOY_USER=<ssh-user>
+DEPLOY_HOST=192.168.10.64
+DEPLOY_USER=devserver
 DEPLOY_SSH_KEY=<private-key>
 DEPLOY_PORT=22
-DEPLOY_PATH=/home/<wsl-user>/inventory
+DEPLOY_PATH=/home/devserver/inventory
 
 # Optional (for frontend build)
 VITE_MSAL_CLIENT_ID=
@@ -175,7 +175,7 @@ After pushing to `main`, the workflow will `git pull` and run:
    - Add all keys listed in **Required GitHub Secrets** above.
 4. Ensure the deploy host is reachable from GitHub Actions:
    - Open port `22` (or your `DEPLOY_PORT`) in Windows Firewall for GitHub Actions IPs, or allow `0.0.0.0/0` if you accept broader access.
-   - Confirm WSL SSH is running and reachable: `ssh <ssh-user>@192.168.10.54 -p <port>`.
+   - Confirm WSL SSH is running and reachable: `ssh devserver@192.168.10.64 -p <port>`.
 5. Trigger a deployment:
    - Push a commit to `main`, or
    - GitHub -> Actions -> Deploy -> Run workflow.

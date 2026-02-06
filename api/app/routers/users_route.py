@@ -8,7 +8,8 @@ from schemas.users import UserCreate, UserUpdate, UserResponse, UserListResponse
 logger = get_logger(__name__)
 router = APIRouter(prefix="/users", tags=["users"])
 
-@router.get("/", response_model=UserListResponse)
+@router.get("", response_model=UserListResponse)
+@router.get("/", response_model=UserListResponse, include_in_schema=False)
 def list_users(
     active_only: int = Query(1, description="Filter to only active users if set to 1"),
     page: int = Query(1, ge=1, description="Page number for pagination"),

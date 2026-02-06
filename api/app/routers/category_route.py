@@ -9,7 +9,8 @@ from schemas.categories import Category, CategoryCreate, CategoryUpdate
 logger = get_logger(__name__)
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
-@router.get("/", response_model=list[Category])
+@router.get("", response_model=list[Category])
+@router.get("/", response_model=list[Category], include_in_schema=False)
 def list_categories(
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(50, ge=1, le=100, description="Number of categories per page"),
