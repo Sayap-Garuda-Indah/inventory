@@ -1,5 +1,5 @@
 from typing import Optional, List, Dict, Any
-from db.pool import fetch_all, fetch_one, execute
+from db.pool import fetch_all, fetch_one, execute_transaction, execute
 from db.base import QueryBuilder, DatabaseUtils, BaseRepository
 from schemas.categories import CategoryCreate, CategoryUpdate
 
@@ -75,15 +75,13 @@ class CategoryRepository:
             query = """
                 INSERT INTO categories (name)
                 VALUES (%s)
-                RETURNING id
                 """
-            
-            new_id = fetch_one(query, (category.name,))
 
-            if new_id is None:
+            results = execute_transaction([(query, (category.name,))])
+            if not results or not results[0]:
                 raise RuntimeError("Failed to create category")
 
-            return new_id['id']
+            return int(results[0])
         except Exception as e:
             raise RuntimeError({str(e)})
 

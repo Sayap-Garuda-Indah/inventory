@@ -102,7 +102,7 @@ class UnitsRepository:
     def create(unit_data: UnitCreate) -> Dict[str, Any]:
         try:
             query = """
-                INSERT INTO units (name, symbol, description)
+                INSERT INTO units (name, symbol, multiplier)
                 VALUES (%s, %s, %s)
             """
             execute(query, (unit_data.name, unit_data.symbol, unit_data.multiplier))
@@ -133,7 +133,7 @@ class UnitsRepository:
                 params.append(unit_data.symbol)
 
             if unit_data.multiplier is not None:
-                set_clause.append("description = %s")
+                set_clause.append("multiplier = %s")
                 params.append(unit_data.multiplier)
 
             if not set_clause:
