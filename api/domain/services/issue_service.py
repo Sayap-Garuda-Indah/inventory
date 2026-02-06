@@ -1,9 +1,9 @@
 from typing import Optional, List
 from fastapi import HTTPException, status
 # from api.db.repositories.item_repo import ItemRepository
+from db.pool import fetch_one
 from db.repositories.user_repo import UserRepository
 from db.repositories.issue_repo import IssueRepository
-from db.repositories.user_repo import UserRepository
 from schemas.issues import IssueCreate, IssueUpdate, IssueResponse, IssueListResponse
 from core.logging import get_logger
 
@@ -295,6 +295,12 @@ class IssueService:
                 )
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue {issue_id} not found")
             
+            issue_items = fetch_one(
+                "SELECT COUNT(*) AS count FROM issue_items WHERE issue_id = %s",
+                (issue_id,),
+            )
+            issue_item_count = int(issue_items["count"]) if issue_items else 0
+
             success = IssueRepository.delete(issue_id)
             if not success:
                 logger.error(
@@ -305,10 +311,26 @@ class IssueService:
                 )
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete issue {issue_id}")
 
-            logger.info("Issue deleted successfully.", extra={"issue_id": issue_id, "issue_code": existing_issue["code"]})
+            logger.info(
+                "Issue soft-deleted successfully.",
+                extra={
+                    "issue_id": issue_id,
+                    "issue_code": existing_issue["code"],
+                    "issue_items": issue_item_count,
+                }
+            )
+
+            warning = None
+            if issue_item_count > 0:
+                warning = (
+                    f"Issue has {issue_item_count} related issue item record(s) kept for history. "
+                    "Issue status is changed to CANCELLED and hidden from normal list."
+                )
 
             message = {
-                "message": f"Issue '{existing_issue["code"]}' (ID: {issue_id}) has been deleted successfully."
+                "message": f"Issue '{existing_issue['code']}' (ID: {issue_id}) has been soft-deleted successfully.",
+                "warning": warning,
+                "issue_items": issue_item_count,
             }
 
             return message

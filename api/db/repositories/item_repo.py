@@ -4,6 +4,8 @@ from db.base import QueryBuilder, DatabaseUtils, BaseRepository, DatabaseConstan
 from schemas.items import ItemCreate, ItemUpdate
 
 class ItemRepository:
+    DELETED_TX_NOTE_PREFIX = "__deleted__"
+
     @staticmethod
     def get_all(
         active_only: bool = True,
@@ -185,7 +187,45 @@ class ItemRepository:
         """
         try:
             DatabaseUtils.validate_id(item_id, "Item")
-            return BaseRepository.soft_delete(DatabaseConstants.TABLE_ITEMS, item_id)
+            query = "UPDATE items SET active = 0 WHERE id = %s AND active = 1"
+            rows_affected = execute(query, (item_id,))
+            return rows_affected > 0
+        except Exception as e:
+            raise RuntimeError(str(e))
+
+    @staticmethod
+    def get_dependency_summary(item_id: int) -> Dict[str, int]:
+        try:
+            DatabaseUtils.validate_id(item_id, "Item")
+
+            issue_items = fetch_one(
+                "SELECT COUNT(*) AS count FROM issue_items WHERE item_id = %s",
+                (item_id,),
+            )
+            stock_levels = fetch_one(
+                "SELECT COUNT(*) AS count FROM stock_levels WHERE item_id = %s",
+                (item_id,),
+            )
+            stock_transactions = fetch_one(
+                """
+                SELECT COUNT(*) AS count
+                FROM stock_tx
+                WHERE item_id = %s
+                  AND (note IS NULL OR note NOT LIKE %s)
+                """,
+                (item_id, f"{ItemRepository.DELETED_TX_NOTE_PREFIX}%"),
+            )
+            audit_scans = fetch_one(
+                "SELECT COUNT(*) AS count FROM audit_scans WHERE item_id = %s",
+                (item_id,),
+            )
+
+            return {
+                "issue_items": int(issue_items["count"]) if issue_items else 0,
+                "stock_levels": int(stock_levels["count"]) if stock_levels else 0,
+                "stock_transactions": int(stock_transactions["count"]) if stock_transactions else 0,
+                "audit_scans": int(audit_scans["count"]) if audit_scans else 0,
+            }
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -242,7 +282,14 @@ class ItemRepository:
         """
         try:
             DatabaseUtils.validate_id(item_id, "Item")
-            return BaseRepository.exists_by_field(DatabaseConstants.TABLE_ITEMS, "id", item_id)
+            query = """
+                SELECT 1
+                FROM items
+                WHERE id = %s AND active = 1
+                LIMIT 1
+            """
+            result = fetch_one(query, (item_id,))
+            return result is not None
         except Exception as e:
             raise RuntimeError(str(e))
         

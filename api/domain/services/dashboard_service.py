@@ -172,7 +172,7 @@ class DashboardService:
             
             # Fetch categories and units for mapping
             categories_data = CategoryRepository.get_all(limit=1000, offset=0)
-            categories_map = {cat['id']: cat for cat in categories_data}
+            categories_map = {cat['id']: cat['name'] for cat in categories_data}
 
             units_data = UnitsRepository.get_all(limit=1000, offset=0)
             units_map = {unit['id']: unit for unit in units_data}
@@ -182,32 +182,48 @@ class DashboardService:
             total_qty = Decimal("0")
 
             for item in items_data:
-                # item_response = IssueItemResponse(**item)
-
                 # Get full item details
                 item_details = ItemRepository.get_by_id(item['item_id'])
+                item_is_active = bool(item_details and item_details.get('active'))
+                category_id = item_details.get('category_id') if item_details else None
+                unit_id = item_details.get('unit_id') if item_details else None
+                unit_data = units_map.get(unit_id) if unit_id else None
 
-                if not item_details:
-                    logger.warning(
-                        "Item not found while enriching issue items",
-                        extra={"item_id": item['item_id']}
-                    )
-                    continue
+                if item_is_active:
+                    item_code = item.get('item_code') or item_details.get('item_code') or '-'
+                    item_name = item.get('item_name') or item_details.get('name') or '-'
+                    category_name = categories_map.get(category_id, '-')
+                    unit_name = unit_data.get('name') if unit_data else '-'
+                    unit_symbol = unit_data.get('symbol') if unit_data else '-'
+                else:
+                    # Keep historical relation row but blank out deleted references.
+                    item_code = '-'
+                    item_name = '-'
+                    category_id = None
+                    category_name = '-'
+                    unit_id = None
+                    unit_name = '-'
+                    unit_symbol = '-'
+                    if not item_details:
+                        logger.warning(
+                            "Item reference not found while enriching issue items",
+                            extra={"item_id": item['item_id']}
+                        )
 
                 enriched_item = {
                     "id": item['id'],
                     "item_id": item['item_id'],
                     "issue_id": item['issue_id'],
                     "qty": float(item['qty']),
-                    "item_code": item.get('item_code') or item_details.get('item_code'),
-                    "item_name": item.get('item_name') or item_details.get('name'),
-                    "category_id": item_details.get('category_id'),
-                    "category_name": categories_map.get(item_details.get('category_id')),
-                    "unit_id": item_details.get('unit_id'),
-                    "unit_name": units_map.get(item_details.get('unit_id'), {}).get('name') if item_details else None,
-                    "unit_symbol": units_map.get(item_details.get('unit_id'), {}).get('symbol') if item_details else None,
-                    "description": item_details.get('description') if item_details else None,
-                    "active": item_details.get('active'),
+                    "item_code": item_code,
+                    "item_name": item_name,
+                    "category_id": category_id,
+                    "category_name": category_name,
+                    "unit_id": unit_id,
+                    "unit_name": unit_name,
+                    "unit_symbol": unit_symbol,
+                    "description": item_details.get('description') if item_is_active else None,
+                    "active": bool(item_details.get('active')) if item_details else False,
                 }
 
                 enriched_items.append(enriched_item)

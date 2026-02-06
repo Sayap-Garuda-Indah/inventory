@@ -3,6 +3,9 @@ from db.pool import fetch_all, fetch_one, execute
 from db.base import DatabaseUtils, QueryBuilder
 
 class AuditSessionRepository:
+    DELETED_LOCATION_NAME_PATTERN = "__deleted__%"
+    DELETED_LOCATION_CODE_PATTERN = "DEL_%"
+
     @staticmethod
     def create(location_id: int, started_by: int, note: Optional[str], expected_count: int) -> Dict[str, Any]:
         try:
@@ -28,17 +31,25 @@ class AuditSessionRepository:
     def get_latest_by_user(user_id: int) -> Optional[Dict[str, Any]]:
         try:
             query = """
-                    SELECT  s.*, l.name AS location_name, l.code as location_code,
+                    SELECT  s.*, COALESCE(l.name, '-') AS location_name, COALESCE(l.code, '-') as location_code,
                             u.name AS started_by_name, uc.name AS closed_by_name
                     FROM audit_sessions s
-                    JOIN locations l ON s.location_id = l.id
+                    LEFT JOIN locations l
+                        ON s.location_id = l.id
+                       AND l.active = 1
+                       AND l.name NOT LIKE %s
+                       AND l.code NOT LIKE %s
                     JOIN users u ON s.started_by = u.id
                     LEFT JOIN users uc ON s.closed_by = uc.id
                     WHERE s.started_by = %s
                     ORDER BY s.id DESC
                     LIMIT 1
                     """
-            params = (user_id,)
+            params = (
+                AuditSessionRepository.DELETED_LOCATION_NAME_PATTERN,
+                AuditSessionRepository.DELETED_LOCATION_CODE_PATTERN,
+                user_id,
+            )
             result = fetch_one(query, params)
 
             return DatabaseUtils.convert_to_dict(result)
@@ -49,15 +60,23 @@ class AuditSessionRepository:
     def get_by_id(session_id: int) -> Optional[Dict[str, Any]]:
         try:
             DatabaseUtils.validate_id(session_id, "Audit Session")
-            query = """SELECT   s.*, l.name AS location_name, l.code AS location_code,
+            query = """SELECT   s.*, COALESCE(l.name, '-') AS location_name, COALESCE(l.code, '-') AS location_code,
                                 u.name AS started_by_name, uc.name AS closed_by_name
                         FROM     audit_sessions s
-                        JOIN locations l ON s.location_id = l.id
+                        LEFT JOIN locations l
+                            ON s.location_id = l.id
+                           AND l.active = 1
+                           AND l.name NOT LIKE %s
+                           AND l.code NOT LIKE %s
                         JOIN users u ON s.started_by = u.id
                         LEFT JOIN users uc ON s.closed_by = uc.id
                         WHERE s.id = %s
                     """
-            params = (session_id,)
+            params = (
+                AuditSessionRepository.DELETED_LOCATION_NAME_PATTERN,
+                AuditSessionRepository.DELETED_LOCATION_CODE_PATTERN,
+                session_id,
+            )
             result = fetch_one(query, params)
 
             return DatabaseUtils.convert_to_dict(result)
@@ -87,18 +106,25 @@ class AuditSessionRepository:
             offset, limit = QueryBuilder.build_pagination(page, page_size)
 
             query = f"""
-                    SELECT  s.*, l.name AS location_name, l.code AS location_code,
+                    SELECT  s.*, COALESCE(l.name, '-') AS location_name, COALESCE(l.code, '-') AS location_code,
                             u.name AS started_by_name, uc.name AS closed_by_name
                     FROM audit_sessions s
-                    JOIN locations l ON s.location_id = l.id
+                    LEFT JOIN locations l
+                        ON s.location_id = l.id
+                       AND l.active = 1
+                       AND l.name NOT LIKE %s
+                       AND l.code NOT LIKE %s
                     JOIN users u ON s.started_by = u.id
                     LEFT JOIN users uc ON s.closed_by = uc.id
                     {where_clause}
                     ORDER BY s.started_at DESC
                     LIMIT %s OFFSET %s
                     """
-            params.extend([limit, offset])
-            results = fetch_all(query, tuple(params))
+            query_params = [
+                AuditSessionRepository.DELETED_LOCATION_NAME_PATTERN,
+                AuditSessionRepository.DELETED_LOCATION_CODE_PATTERN,
+            ] + params + [limit, offset]
+            results = fetch_all(query, tuple(query_params))
 
             return DatabaseUtils.convert_rows_dict(results)
         except Exception as e:

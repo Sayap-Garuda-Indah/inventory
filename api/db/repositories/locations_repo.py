@@ -1,9 +1,13 @@
 from typing import Optional, List, Dict, Any
 from db.pool import fetch_all, fetch_one, execute
-from db.base import QueryBuilder, DatabaseUtils, BaseRepository, DatabaseConstants
+from db.base import QueryBuilder, DatabaseUtils
 from schemas.locations import LocationCreate, LocationUpdate
 
 class LocationsRepository:
+    DELETED_TX_NOTE_PREFIX = "__deleted__"
+    DELETED_NAME_PREFIX = "__deleted__"
+    DELETED_CODE_PREFIX = "DEL_"
+
     @staticmethod
     def get_all(
         active_only: bool = True,
@@ -14,6 +18,11 @@ class LocationsRepository:
         try:
             conditions = []
             params = []
+
+            conditions.append("name NOT LIKE %s")
+            params.append(f"{LocationsRepository.DELETED_NAME_PREFIX}%")
+            conditions.append("code NOT LIKE %s")
+            params.append(f"{LocationsRepository.DELETED_CODE_PREFIX}%")
 
             if active_only:
                 conditions.append("active = %s")
@@ -48,8 +57,17 @@ class LocationsRepository:
                 SELECT id, name, code, active
                 FROM locations
                 WHERE id = %s
+                  AND name NOT LIKE %s
+                  AND code NOT LIKE %s
             """
-            return fetch_one(query, (location_id,))
+            return fetch_one(
+                query,
+                (
+                    location_id,
+                    f"{LocationsRepository.DELETED_NAME_PREFIX}%",
+                    f"{LocationsRepository.DELETED_CODE_PREFIX}%",
+                ),
+            )
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -61,8 +79,17 @@ class LocationsRepository:
                 SELECT id, name, code, active
                 FROM locations
                 WHERE code = %s
+                  AND name NOT LIKE %s
+                  AND code NOT LIKE %s
             """
-            return fetch_one(query, (code.strip(),))
+            return fetch_one(
+                query,
+                (
+                    code.strip(),
+                    f"{LocationsRepository.DELETED_NAME_PREFIX}%",
+                    f"{LocationsRepository.DELETED_CODE_PREFIX}%",
+                ),
+            )
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -74,8 +101,17 @@ class LocationsRepository:
                 SELECT id, name, code, active
                 FROM locations
                 WHERE name = %s
+                  AND name NOT LIKE %s
+                  AND code NOT LIKE %s
             """
-            return fetch_one(query, (name.strip(),))
+            return fetch_one(
+                query,
+                (
+                    name.strip(),
+                    f"{LocationsRepository.DELETED_NAME_PREFIX}%",
+                    f"{LocationsRepository.DELETED_CODE_PREFIX}%",
+                ),
+            )
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -83,7 +119,24 @@ class LocationsRepository:
     def exists_by_id(location_id: int) -> bool:
         try:
             DatabaseUtils.validate_id(location_id, "Location")
-            return BaseRepository.exists_by_field(DatabaseConstants.TABLE_LOCATIONS, "id", location_id)
+            query = """
+                SELECT 1
+                FROM locations
+                WHERE id = %s
+                  AND active = 1
+                  AND name NOT LIKE %s
+                  AND code NOT LIKE %s
+                LIMIT 1
+            """
+            result = fetch_one(
+                query,
+                (
+                    location_id,
+                    f"{LocationsRepository.DELETED_NAME_PREFIX}%",
+                    f"{LocationsRepository.DELETED_CODE_PREFIX}%",
+                ),
+            )
+            return result is not None
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -93,7 +146,43 @@ class LocationsRepository:
             DatabaseUtils.validate_string(name, "name")
             if exclude_id is not None:
                 DatabaseUtils.validate_id(exclude_id, "Location")
-            return BaseRepository.exists_by_field(DatabaseConstants.TABLE_LOCATIONS, "name", name.strip(), exclude_id)
+            if exclude_id is not None:
+                query = """
+                    SELECT 1
+                    FROM locations
+                    WHERE name = %s
+                      AND id != %s
+                      AND name NOT LIKE %s
+                      AND code NOT LIKE %s
+                    LIMIT 1
+                """
+                result = fetch_one(
+                    query,
+                    (
+                        name.strip(),
+                        exclude_id,
+                        f"{LocationsRepository.DELETED_NAME_PREFIX}%",
+                        f"{LocationsRepository.DELETED_CODE_PREFIX}%",
+                    ),
+                )
+            else:
+                query = """
+                    SELECT 1
+                    FROM locations
+                    WHERE name = %s
+                      AND name NOT LIKE %s
+                      AND code NOT LIKE %s
+                    LIMIT 1
+                """
+                result = fetch_one(
+                    query,
+                    (
+                        name.strip(),
+                        f"{LocationsRepository.DELETED_NAME_PREFIX}%",
+                        f"{LocationsRepository.DELETED_CODE_PREFIX}%",
+                    ),
+                )
+            return result is not None
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -103,7 +192,43 @@ class LocationsRepository:
             DatabaseUtils.validate_string(code, "code")
             if exclude_id is not None:
                 DatabaseUtils.validate_id(exclude_id, "Location")
-            return BaseRepository.exists_by_field(DatabaseConstants.TABLE_LOCATIONS, "code", code.strip(), exclude_id)
+            if exclude_id is not None:
+                query = """
+                    SELECT 1
+                    FROM locations
+                    WHERE code = %s
+                      AND id != %s
+                      AND name NOT LIKE %s
+                      AND code NOT LIKE %s
+                    LIMIT 1
+                """
+                result = fetch_one(
+                    query,
+                    (
+                        code.strip(),
+                        exclude_id,
+                        f"{LocationsRepository.DELETED_NAME_PREFIX}%",
+                        f"{LocationsRepository.DELETED_CODE_PREFIX}%",
+                    ),
+                )
+            else:
+                query = """
+                    SELECT 1
+                    FROM locations
+                    WHERE code = %s
+                      AND name NOT LIKE %s
+                      AND code NOT LIKE %s
+                    LIMIT 1
+                """
+                result = fetch_one(
+                    query,
+                    (
+                        code.strip(),
+                        f"{LocationsRepository.DELETED_NAME_PREFIX}%",
+                        f"{LocationsRepository.DELETED_CODE_PREFIX}%",
+                    ),
+                )
+            return result is not None
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -161,8 +286,61 @@ class LocationsRepository:
     def delete(location_id: int) -> bool:
         try:
             DatabaseUtils.validate_id(location_id, "Location")
-            query = "DELETE FROM locations WHERE id = %s"
-            rows = execute(query, (location_id,))
+            deleted_name = f"{LocationsRepository.DELETED_NAME_PREFIX}{location_id}"
+            deleted_code = f"{LocationsRepository.DELETED_CODE_PREFIX}{location_id}"
+            query = """
+                UPDATE locations
+                SET active = 0, name = %s, code = %s
+                WHERE id = %s
+                  AND name NOT LIKE %s
+                  AND code NOT LIKE %s
+            """
+            rows = execute(
+                query,
+                (
+                    deleted_name,
+                    deleted_code[:24],
+                    location_id,
+                    f"{LocationsRepository.DELETED_NAME_PREFIX}%",
+                    f"{LocationsRepository.DELETED_CODE_PREFIX}%",
+                ),
+            )
             return rows > 0
+        except Exception as e:
+            raise RuntimeError(str(e))
+
+    @staticmethod
+    def get_dependency_summary(location_id: int) -> Dict[str, int]:
+        try:
+            DatabaseUtils.validate_id(location_id, "Location")
+
+            stock_levels = fetch_one(
+                "SELECT COUNT(*) AS count FROM stock_levels WHERE location_id = %s",
+                (location_id,),
+            )
+            stock_transactions = fetch_one(
+                """
+                SELECT COUNT(*) AS count
+                FROM stock_tx
+                WHERE location_id = %s
+                  AND (note IS NULL OR note NOT LIKE %s)
+                """,
+                (location_id, f"{LocationsRepository.DELETED_TX_NOTE_PREFIX}%"),
+            )
+            audit_sessions = fetch_one(
+                "SELECT COUNT(*) AS count FROM audit_sessions WHERE location_id = %s",
+                (location_id,),
+            )
+            audit_scans = fetch_one(
+                "SELECT COUNT(*) AS count FROM audit_scans WHERE location_id = %s",
+                (location_id,),
+            )
+
+            return {
+                "stock_levels": int(stock_levels["count"]) if stock_levels else 0,
+                "stock_transactions": int(stock_transactions["count"]) if stock_transactions else 0,
+                "audit_sessions": int(audit_sessions["count"]) if audit_sessions else 0,
+                "audit_scans": int(audit_scans["count"]) if audit_scans else 0,
+            }
         except Exception as e:
             raise RuntimeError(str(e))

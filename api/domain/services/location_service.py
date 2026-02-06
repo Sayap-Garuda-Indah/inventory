@@ -86,7 +86,7 @@ class LocationService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
     @staticmethod
-    def delete_location(location_id: int) -> None:
+    def delete_location(location_id: int) -> dict:
         try:
             if not isinstance(location_id, int) or location_id <= 0:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid location ID")
@@ -95,19 +95,33 @@ class LocationService:
             if not existing:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
 
+            if existing.get("active") in (False, 0):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Location is already inactive")
+
+            dependencies = LocationsRepository.get_dependency_summary(location_id)
+
             success = LocationsRepository.delete(location_id)
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to delete location"
                 )
+
+            total_dependencies = sum(dependencies.values())
+            warning = None
+            if total_dependencies > 0:
+                warning = (
+                    "Related stock/audit records remain for history "
+                    f"(total references: {total_dependencies})."
+                )
+
+            return {
+                "message": f"Location '{existing['name']}' ({existing['code']}) has been deactivated.",
+                "warning": warning,
+                "dependencies": dependencies,
+            }
         except HTTPException:
             raise
         except Exception as e:
-            if "foreign key" in str(e).lower():
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Location is in use and cannot be deleted"
-                )
             logger.error("Failed to delete location", extra={"error": str(e), "location_id": location_id})
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")

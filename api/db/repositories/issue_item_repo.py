@@ -4,6 +4,8 @@ from db.pool import fetch_all, fetch_one, execute, get_db_cursor
 from schemas.issue_items import IssueItemCreate, IssueItemUpdate, IssueItemResponse, IssueItemListResponse, IssueItemBulkCreate
 
 class IssueItemRepository:
+    DELETED_UNIT_NAME_PATTERN = "__deleted__%"
+
     @staticmethod
     def get_all(
         issue_id: Optional[Any] = None,
@@ -31,10 +33,12 @@ class IssueItemRepository:
                     ii.issue_id,
                     ii.item_id,
                     ii.qty,
-                    i.item_code AS item_code,
-                    i.name AS item_name
+                    COALESCE(i.item_code, '-') AS item_code,
+                    COALESCE(i.name, '-') AS item_name
                 FROM issue_items ii
-                LEFT JOIN items i ON ii.item_id = i.id
+                LEFT JOIN items i
+                    ON ii.item_id = i.id
+                   AND i.active = 1
                 {where_clause}
                 ORDER BY ii.id DESC
                 LIMIT %s OFFSET %s
@@ -57,10 +61,12 @@ class IssueItemRepository:
                     ii.issue_id,
                     ii.item_id,
                     ii.qty,
-                    i.item_code AS item_code,
-                    i.name AS item_name
+                    COALESCE(i.item_code, '-') AS item_code,
+                    COALESCE(i.name, '-') AS item_name
                 FROM issue_items ii
-                LEFT JOIN items i ON ii.item_id = i.id
+                LEFT JOIN items i
+                    ON ii.item_id = i.id
+                   AND i.active = 1
                 WHERE ii.id = %s
                 """
             
@@ -80,18 +86,22 @@ class IssueItemRepository:
                     ii.issue_id,
                     ii.item_id,
                     ii.qty,
-                    i.item_code as item_code,
-                    i.name as item_name,
+                    COALESCE(i.item_code, '-') AS item_code,
+                    COALESCE(i.name, '-') AS item_name,
                     i.unit_id,
-                    u.symbol as unit_symbol
+                    COALESCE(u.symbol, '-') AS unit_symbol
                 FROM issue_items ii
-                LEFT JOIN items i ON ii.item_id = i.id
-                LEFT JOIN units u ON i.unit_id = u.id
+                LEFT JOIN items i
+                    ON ii.item_id = i.id
+                   AND i.active = 1
+                LEFT JOIN units u
+                    ON i.unit_id = u.id
+                   AND u.name NOT LIKE %s
                 WHERE ii.issue_id = %s
                 ORDER BY ii.id
             """
 
-            return fetch_all(query, (issue_id,))
+            return fetch_all(query, (IssueItemRepository.DELETED_UNIT_NAME_PATTERN, issue_id))
         except Exception as e:
             raise RuntimeError(str(e))
         
