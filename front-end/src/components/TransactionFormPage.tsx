@@ -123,7 +123,7 @@ function TransactionFormPage() {
         };
 
         try {
-            const response = await fetch(`${API_BASE_URL}/stock-transactions`, {
+            const response = await fetch(`${API_BASE_URL}/transactions`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -178,6 +178,7 @@ function TransactionFormPage() {
         { value: 'IN', label: 'IN (Receive)' },
         { value: 'OUT', label: 'OUT (Issue)' },
         { value: 'ADJ', label: 'ADJ (Adjust)' },
+        { value: 'XFER', label: 'XFER (Transfer)' },
     ];
 
     return (

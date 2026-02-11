@@ -70,7 +70,8 @@ function Dashboard() {
     const [statistics, setStatistics] = useState<Statistics | null>(null);
     const [searchInput, setSearchInput] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
+    const [initialLoading, setInitialLoading] = useState(true);
+    const [issuesLoading, setIssuesLoading] = useState(false);
     const [statsLoading, setStatsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -168,7 +169,7 @@ function Dashboard() {
 
     const fetchIssues = useCallback(async () => {
         if (!token) return;
-        setIsLoading(true);
+        setIssuesLoading(true);
         setError(null);
         try {
             const params = new URLSearchParams({
@@ -189,7 +190,8 @@ function Dashboard() {
         } catch (err) {
             setError((err as Error).message || 'Failed to load issues');
         } finally {
-            setIsLoading(false);
+            setIssuesLoading(false);
+            setInitialLoading(false);
         }
     }, [token, API_BASE_URL, currentPage, pageSize, debouncedSearch, filters.status]);
 
@@ -231,7 +233,8 @@ function Dashboard() {
                 throw new Error(err.detail || 'Failed to delete issue');
             }
             setSuccess('Issue deleted successfully');
-            fetchIssues();
+            await fetchIssues();
+            await fetchStatistics();
         } catch (err) {
             setError((err as Error).message || 'Failed to delete issue');
         }
@@ -239,8 +242,11 @@ function Dashboard() {
 
     useEffect(() => {
         fetchIssues();
+    }, [fetchIssues]);
+
+    useEffect(() => {
         fetchStatistics();
-    }, [fetchIssues, fetchStatistics]);
+    }, [fetchStatistics]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => {
@@ -322,7 +328,7 @@ function Dashboard() {
         return sortConfig.direction === 'asc' ? '▲' : '▼';
     };
 
-    if (authLoading || isLoading) {
+    if (authLoading || initialLoading) {
         return (
             <div className="flex items-center justify-center py-12">
                 <Spinner size="lg" />
@@ -526,8 +532,15 @@ function Dashboard() {
                             />
                         </div>
 
+                        {issuesLoading && (
+                            <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+                                <Spinner size="sm" />
+                                <span>Loading issues...</span>
+                            </div>
+                        )}
+
                         {/* Table */}
-                        {sortedIssues.length === 0 ? (
+                        {sortedIssues.length === 0 && !issuesLoading ? (
                             <div className="text-center text-gray-500 py-12">
                                 <Inbox className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                                 <p className="text-lg">No issues found</p>

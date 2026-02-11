@@ -82,7 +82,8 @@ function ItemsPage() {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     
-    const [isLoading, setIsLoading] = useState(true);
+    const [initialLoading, setInitialLoading] = useState(true);
+    const [itemsLoading, setItemsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -120,7 +121,7 @@ function ItemsPage() {
 
     useEffect(() => {
         fetchItems();
-    }, [currentPage, debouncedSearch, statusFilter]);
+    }, [currentPage, debouncedSearch]);
 
     const fetchMetadata = async () => {
         if (!token) return;
@@ -153,7 +154,7 @@ function ItemsPage() {
     const fetchItems = async () => {
         if (!token) return;
 
-        setIsLoading(true);
+        setItemsLoading(true);
         setError(null);
 
         try {
@@ -185,7 +186,8 @@ function ItemsPage() {
         } catch (err) {
             setError((err as Error).message || 'Failed to load items');
         } finally {
-            setIsLoading(false);
+            setItemsLoading(false);
+            setInitialLoading(false);
         }
     };
 
@@ -402,7 +404,7 @@ function ItemsPage() {
         return data;
     }, [filteredItems, sortConfig]);
 
-    if (authLoading || isLoading) {
+    if (authLoading || initialLoading) {
         return (
             <div className="flex items-center justify-center py-12">
                 <Spinner size="lg" />
@@ -500,7 +502,13 @@ function ItemsPage() {
                         </div>
                     </CardHeader>
                     <CardBody className="p-0">
-                        {sortedItems.length === 0 ? (
+                        {itemsLoading && (
+                            <div className="flex items-center gap-2 text-sm text-gray-500 px-6 pt-4">
+                                <Spinner size="sm" />
+                                <span>Loading items...</span>
+                            </div>
+                        )}
+                        {sortedItems.length === 0 && !itemsLoading ? (
                             <div className="text-center text-gray-500 py-12">
                                 <Inbox className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                                 <p className="text-lg">No items found</p>
