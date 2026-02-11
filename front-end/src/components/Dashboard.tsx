@@ -19,6 +19,7 @@ import {
     FormInput,
     FormSelect,
 } from './UI';
+import { IssueStatisticsCards, type IssueStatisticsData } from './IssueStatisticsCards';
 
 interface Issue {
     id: number;
@@ -48,16 +49,6 @@ interface User {
     name: string;
 }
 
-interface Statistics {
-    total: number;
-    status_breakdown: {
-        draft: { count: number; percentage: number };
-        approved: { count: number; percentage: number };
-        issued: { count: number; percentage: number };
-        cancelled: { count: number; percentage: number };
-    };
-}
-
 interface IssueDetails {
     issue: Issue;
     items: IssueItem[];
@@ -67,7 +58,7 @@ function Dashboard() {
     const { user, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [issues, setIssues] = useState<Issue[]>([]);
-    const [statistics, setStatistics] = useState<Statistics | null>(null);
+    const [statistics, setStatistics] = useState<IssueStatisticsData | null>(null);
     const [searchInput, setSearchInput] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [initialLoading, setInitialLoading] = useState(true);
@@ -354,102 +345,8 @@ function Dashboard() {
                     </CardBody>
                 </Card>
 
-                {/* Statistics Section */}
-                {!statsLoading && statistics && (
-                    <div className="mb-6">
-                        <h4 className="text-2xl font-bold mb-4">Issues Statistics</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                            {/* Total */}
-                            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                                <CardBody>
-                                    <div className="text-4xl mb-2">📊</div>
-                                    <p className="text-sm text-gray-600 mb-1">Total Issues</p>
-                                    <p className="text-3xl font-bold text-gray-900">{statistics.total}</p>
-                                </CardBody>
-                            </Card>
-
-                            {/* Draft */}
-                            <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
-                                <CardBody>
-                                    <div className="text-4xl mb-2">📝</div>
-                                    <p className="text-sm text-gray-600 mb-1">Draft</p>
-                                    <p className="text-3xl font-bold text-gray-900">{statistics.status_breakdown.draft.count}</p>
-                                    <div className="mt-2">
-                                        <div className="flex justify-between text-xs text-gray-600 mb-1">
-                                            <span>{statistics.status_breakdown.draft.percentage}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-1">
-                                            <div
-                                                className="bg-yellow-500 h-1 rounded-full"
-                                                style={{ width: `${statistics.status_breakdown.draft.percentage}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </CardBody>
-                            </Card>
-
-                            {/* Approved */}
-                            <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200">
-                                <CardBody>
-                                    <div className="text-4xl mb-2">✅</div>
-                                    <p className="text-sm text-gray-600 mb-1">Approved</p>
-                                    <p className="text-3xl font-bold text-gray-900">{statistics.status_breakdown.approved.count}</p>
-                                    <div className="mt-2">
-                                        <div className="flex justify-between text-xs text-gray-600 mb-1">
-                                            <span>{statistics.status_breakdown.approved.percentage}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-1">
-                                            <div
-                                                className="bg-cyan-500 h-1 rounded-full"
-                                                style={{ width: `${statistics.status_breakdown.approved.percentage}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </CardBody>
-                            </Card>
-
-                            {/* Issued */}
-                            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-                                <CardBody>
-                                    <div className="text-4xl mb-2">📦</div>
-                                    <p className="text-sm text-gray-600 mb-1">Issued</p>
-                                    <p className="text-3xl font-bold text-gray-900">{statistics.status_breakdown.issued.count}</p>
-                                    <div className="mt-2">
-                                        <div className="flex justify-between text-xs text-gray-600 mb-1">
-                                            <span>{statistics.status_breakdown.issued.percentage}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-1">
-                                            <div
-                                                className="bg-green-500 h-1 rounded-full"
-                                                style={{ width: `${statistics.status_breakdown.issued.percentage}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </CardBody>
-                            </Card>
-
-                            {/* Cancelled */}
-                            <Card className="bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200">
-                                <CardBody>
-                                    <div className="text-4xl mb-2">❌</div>
-                                    <p className="text-sm text-gray-600 mb-1">Cancelled</p>
-                                    <p className="text-3xl font-bold text-gray-900">{statistics.status_breakdown.cancelled.count}</p>
-                                    <div className="mt-2">
-                                        <div className="flex justify-between text-xs text-gray-600 mb-1">
-                                            <span>{statistics.status_breakdown.cancelled.percentage}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-1">
-                                            <div
-                                                className="bg-gray-500 h-1 rounded-full"
-                                                style={{ width: `${statistics.status_breakdown.cancelled.percentage}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </CardBody>
-                            </Card>
-                        </div>
-                    </div>
-                )}
+                {/* Issue Statistics Cards Size, change to sm/md/lg */}
+                <IssueStatisticsCards statistics={statistics} isLoading={statsLoading} scale="sm" />
 
                 {/* Issues Management Section */}
                 <Card>
