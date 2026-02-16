@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import HTTPException, status
 from db.repositories.issue_repo import IssueRepository
 from db.repositories.item_repo import ItemRepository
@@ -16,14 +16,25 @@ class DashboardService:
     """
     Service for aggregating dashboard data related to issues, issue items, categories, units, and users.
     """
-        
+    
     @staticmethod
-    def get_issue_statistics() -> Dict[str, Any]:
+    def _owner_scope(current_user: Dict[str, Any]) -> Optional[int]:
+        role = str(current_user.get("role", "")).upper()
+        if role == "ADMIN":
+            return None  # No owner filter for admins
+        elif role == "STAFF":
+            return current_user.get("id")  # Filter by user ID for staff
+        else:
+            return None  # Default to no filter for other roles (if any)
+
+    @staticmethod
+    def get_issue_statistics(current_user: Dict[str, Any]) -> Dict[str, Any]:
         """
         Get dashboard statistics for issues
         """
         try:
-            total_issues = IssueRepository.count()
+            owner_scope = DashboardService._owner_scope(current_user)
+            total_issues = IssueRepository.count(requested_by=owner_scope)
 
             if total_issues == 0:
                 return {
@@ -36,10 +47,10 @@ class DashboardService:
                     }
                 }
 
-            draft_count = IssueRepository.count_status('DRAFT')
-            approved_count = IssueRepository.count_status('APPROVED')
-            issued_count = IssueRepository.count_status('ISSUED')
-            cancelled_count = IssueRepository.count_status('CANCELLED')
+            draft_count = IssueRepository.count_status('DRAFT', requested_by=owner_scope)
+            approved_count = IssueRepository.count_status('APPROVED', requested_by=owner_scope)
+            issued_count = IssueRepository.count_status('ISSUED', requested_by=owner_scope)
+            cancelled_count = IssueRepository.count_status('CANCELLED', requested_by=owner_scope)
 
             # Calculate percentages
             draft_percentage = round((draft_count / total_issues) * 100, 2)
@@ -139,7 +150,7 @@ class DashboardService:
             )
 
     @staticmethod
-    def get_items_by_issue(issue_id: int) -> Dict[str, Any]:
+    def get_items_by_issue(issue_id: int, current_user: Dict[str, Any]) -> Dict[str, Any]:
         """
         Get items associated with a specific issue.
         """
@@ -152,13 +163,23 @@ class DashboardService:
                     detail=f"Issue {issue_id} not found"
                 )
 
+            owner_scope = DashboardService._owner_scope(current_user)
+            if owner_scope is not None and issue_data.get('requested_by') != owner_scope:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You do not have permission to view items for this issue"
+                )
+            
             # Fetch issue items
             items_data = IssueItemRepository.get_by_issue_id(issue_id)
             # items = [IssueItemResponse(**item) for item in items_data]
             if not items_data:
                 logger.info(
                     "Items for issue retrieved successfully",
-                    extra={"issue_id": issue_id}
+                    extra={
+                        "issue_id": issue_id, 
+                        "requested_by": current_user["id"]
+                    }
                 )
 
                 results = {
@@ -190,8 +211,8 @@ class DashboardService:
                 unit_data = units_map.get(unit_id) if unit_id else None
 
                 if item_is_active:
-                    item_code = item.get('item_code') or item_details.get('item_code') or '-'
-                    item_name = item.get('item_name') or item_details.get('name') or '-'
+                    item_code = item.get('item_code') or (item_details.get('item_code') if item_details else None) or '-'
+                    item_name = item.get('item_name') or (item_details.get('name') if item_details else None) or '-'
                     category_name = categories_map.get(category_id, '-')
                     unit_name = unit_data.get('name') if unit_data else '-'
                     unit_symbol = unit_data.get('symbol') if unit_data else '-'
@@ -222,7 +243,7 @@ class DashboardService:
                     "unit_id": unit_id,
                     "unit_name": unit_name,
                     "unit_symbol": unit_symbol,
-                    "description": item_details.get('description') if item_is_active else None,
+                    "description": item_details.get('description') if item_is_active and item_details else None,
                     "active": bool(item_details.get('active')) if item_details else False,
                 }
 
@@ -262,13 +283,14 @@ class DashboardService:
             )
         
     @staticmethod
-    def get_advanced_statistics() -> Dict[str, Any]:
+    def get_advanced_statistics(current_user: Dict[str, Any]) -> Dict[str, Any]:
         """
         Get advanced statistics including average items per issue, 
         status distribution, and trend data.
         """
         try:
-            total_issues = IssueRepository.count()
+            owner_scope = DashboardService._owner_scope(current_user)
+            total_issues = IssueRepository.count(requested_by=owner_scope)
             
             if total_issues == 0:
                 response = {
@@ -287,10 +309,10 @@ class DashboardService:
                 return response
 
             # Get status counts
-            draft_count = IssueRepository.count_status("DRAFT")
-            approved_count = IssueRepository.count_status("APPROVED")
-            issued_count = IssueRepository.count_status("ISSUED")
-            cancelled_count = IssueRepository.count_status("CANCELLED")
+            draft_count = IssueRepository.count_status("DRAFT", requested_by=owner_scope)
+            approved_count = IssueRepository.count_status("APPROVED", requested_by=owner_scope)
+            issued_count = IssueRepository.count_status("ISSUED", requested_by=owner_scope)
+            cancelled_count = IssueRepository.count_status("CANCELLED", requested_by=owner_scope)
 
             # Calculate percentages
             draft_pct = round((draft_count / total_issues) * 100, 2)
@@ -299,12 +321,8 @@ class DashboardService:
             cancelled_pct = round((cancelled_count / total_issues) * 100, 2)
 
             # Get total items across all issues
-            all_issues = IssueRepository.get_all(limit=10000, offset=0)
-            total_items = 0
-            for issue in all_issues:
-                items_count = IssueItemRepository.count(issue_id=issue['id'])
-                total_items += items_count
-
+            all_issues = IssueRepository.get_all(limit=10000, offset=0, requested_by=owner_scope)
+            total_items = sum(IssueItemRepository.count(issue_id=issue['id']) for issue in all_issues)
             avg_items = round(total_items / total_issues, 2) if total_issues > 0 else 0
 
             # Calculate completion rate (approved + issued) / total

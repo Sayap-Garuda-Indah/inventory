@@ -87,12 +87,18 @@ function Dashboard() {
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
+    const isStaff = user?.role === 'STAFF';
 
     useEffect(() => {
         if (!authLoading && !user) {
             navigate('/login');
         }
     }, [authLoading, user, navigate]);
+
+    const canAccessIssue = useCallback((issue: Issue) => {
+        if (!isStaff) return true;
+        return issue.requested_by === user?.id;
+    }, [isStaff, user?.id]);
 
     const fetchUserData = useCallback(async (userId: number): Promise<User | null> => {
         if (!token) return null;
@@ -188,6 +194,12 @@ function Dashboard() {
 
     const fetchIssueDetails = async (issueId: number) => {
         if (!token) return;
+        const targetIssue = issues.find((issue) => issue.id === issueId);
+        if (targetIssue && !canAccessIssue(targetIssue)) {
+            setError('You do not have permission to access this issue.');
+            return;
+        }
+
         try {
             const [issueRes, itemsRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/issues/${issueId}`, {
@@ -264,6 +276,7 @@ function Dashboard() {
 
     const filteredIssues = useMemo(() => {
         return issues.filter((issue) => {
+            if (!canAccessIssue(issue)) return false;
             if (debouncedSearch && !issue.code.toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
             if (filters.requestedBy) {
                 const requestedName = issue.requested_by ? (userNameMap[issue.requested_by] || '') : '';
@@ -285,7 +298,7 @@ function Dashboard() {
             }
             return true;
         });
-    }, [issues, filters, userNameMap, debouncedSearch]);
+    }, [issues, filters, userNameMap, debouncedSearch, canAccessIssue]);
 
     const sortedIssues = useMemo(() => {
         const data = [...filteredIssues];
@@ -500,7 +513,7 @@ function Dashboard() {
                                                             <Eye className="w-4 h-4 mr-1" />
                                                             View
                                                         </Button>
-                                                        {(user?.role === 'ADMIN' || user?.role === 'STAFF') && (
+                                                        {(user?.role === 'ADMIN' || (user?.role === 'STAFF' && canAccessIssue(issue))) && (
                                                             <>
                                                                 <Button
                                                                     variant="outline-primary"

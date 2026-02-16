@@ -16,7 +16,7 @@ def list_items(
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(50, ge=1, le=100, description="Number of items per page"),
     search: Optional[str] = Query(None, description="Search term for SKU or name"),
-    current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> ItemListResponse:
     try:
         logger.info(
@@ -34,7 +34,8 @@ def list_items(
             active_only=bool(active_only),
             page=page,
             page_size=page_size,
-            search=search
+            search=search,
+            current_user=current_user
         )
 
         logger.info(
@@ -61,7 +62,7 @@ def list_items(
 @router.get("/{item_id}", response_model=ItemResponse)
 def get_item(
     item_id: int = Path(..., gt=0, description="The ID of the item to retrieve"),
-    current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> ItemResponse:
     try:
         logger.info(
@@ -72,7 +73,7 @@ def get_item(
             }
         )
 
-        item_data = ItemService.get_item_by_id(item_id)
+        item_data = ItemService.get_item_by_id(item_id, current_user)
         
         logger.info(
             "Item detail retrieved",
@@ -100,7 +101,7 @@ def get_item(
 @router.post("/", response_model=ItemResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_role(UserRole.ADMIN, UserRole.STAFF))], include_in_schema=False)
 def create_item(
     item_data: ItemCreate,
-    current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> ItemResponse:
     try:
         logger.info(
@@ -111,7 +112,7 @@ def create_item(
             }
         )
 
-        response = ItemService.create_item(item_data)
+        response = ItemService.create_item(item_data, current_user)
         
         logger.info(
             "Item created successfully",
@@ -139,7 +140,7 @@ def create_item(
 def update_item(
     item_data: ItemUpdate,
     item_id: int = Path(..., gt=0, description="The ID of the item to update"),
-    current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
+    current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> ItemResponse:
     try:
         logger.info(
@@ -150,7 +151,7 @@ def update_item(
             }
         )
         
-        response = ItemService.update_item(item_id, item_data)
+        response = ItemService.update_item(item_id, item_data, current_user)
         
         logger.info(
             "Item updated successfully",
@@ -170,7 +171,7 @@ def update_item(
 @router.delete("/{item_id}", status_code=status.HTTP_200_OK, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def delete_item(
     item_id: int = Path(..., gt=0, description="The ID of the item to delete"),
-    current_user: UserRole = Depends(require_role(UserRole.ADMIN))
+    current_user: dict = Depends(require_role(UserRole.ADMIN))
 ) -> dict:
     try:
         logger.info(

@@ -23,7 +23,7 @@ def get_issue_statistics(current_user: dict = Depends(get_current_user)) -> dict
             }
         )
 
-        stats = DashboardService.get_issue_statistics()
+        stats = DashboardService.get_issue_statistics(current_user=current_user)
 
         return stats
     except HTTPException:
@@ -63,7 +63,8 @@ def list_issues(
             page=page,
             page_size=page_size,
             search=search,
-            status_filter=status_filter
+            status_filter=status_filter,
+            current_user=current_user
         )
     
         return issues_data
@@ -85,7 +86,7 @@ def get_issue(
             }
         )
 
-        issue_data = IssueService.get_issue_by_id(issue_id)
+        issue_data = IssueService.get_issue_by_id(issue_id, current_user=current_user)
         return issue_data
     except Exception as e:
         logger.error(f"Error in get_issue. ", extra={"error": str(e), "requested_by": current_user["id"]})
@@ -105,7 +106,7 @@ def get_issue_by_code(
             }
         )
 
-        issue_data = IssueService.get_issue_by_code(code)
+        issue_data = IssueService.get_issue_by_code(code, current_user=current_user)
         
         if issue_data is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue with code '{code}' not found")
@@ -132,7 +133,7 @@ def get_issue_items_details(
             }
         )
 
-        items_data = DashboardService.get_items_by_issue(issue_id)
+        items_data = DashboardService.get_items_by_issue(issue_id, current_user=current_user)
 
         logger.info(
             "Issue items details retrieved successfully",
@@ -199,7 +200,7 @@ def get_advanced_statistics(
             extra={"requested_by": current_user["id"]}
         )
         
-        stats = DashboardService.get_advanced_statistics()
+        stats = DashboardService.get_advanced_statistics(current_user=current_user)
         
         return stats
     except HTTPException:
@@ -241,7 +242,7 @@ def create_issue(
             }
         )
 
-        new_issue = IssueService.create_issue(issue_data, current_user["id"])
+        new_issue = IssueService.create_issue(issue_data, current_user=current_user)
         
         logger.info(
             "Issue created successfully",
@@ -278,7 +279,7 @@ def update_issue(
             }
         )
 
-        response = IssueService.update_issue(issue_id, issue_data)
+        response = IssueService.update_issue(issue_id, issue_data, current_user=current_user)
 
         logger.info(
             "Issue updated successfully",
@@ -315,7 +316,7 @@ def delete_issue(
             }
         )
 
-        result = IssueService.delete_issue(issue_id)
+        result = IssueService.delete_issue(issue_id, current_user=current_user)
         if result is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue with ID '{issue_id}' not found")
 
@@ -333,14 +334,15 @@ def delete_issue(
         raise
     except Exception as e:
         logger.error(
-            logger.error(
-                "Failed to delete issue",
-                extra={"error": str(e), "issue_id": issue_id}
-            )
+            "Failed to delete issue",
+            extra={
+                "error": str(e), 
+                "issue_id": issue_id
+            }
         )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
     
-@router.patch("/{issue_ud}/approve", response_model=IssueResponse)
+@router.patch("/{issue_id}/approve", response_model=IssueResponse)
 def approve_issue(
     issue_id: int = Path(..., gt=0, description="The ID of the issue to approve"),
     current_user: dict = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
@@ -354,7 +356,7 @@ def approve_issue(
             }
         )
 
-        approved_issue = IssueService.approve_issue(issue_id, current_user["id"])
+        approved_issue = IssueService.approve_issue(issue_id, current_user["id"], current_user=current_user)
 
         logger.info(
             "Issue approved successfully",
@@ -386,7 +388,7 @@ def change_issue_status(issue_id: int = Path(..., gt=0, description="The ID of t
             }
         )
 
-        updated_issue = IssueService.change_issue_status(issue_id, new_status)
+        updated_issue = IssueService.change_issue_status(issue_id, new_status, current_user=current_user)
 
         logger.info(
             "Issue status changed successfully",

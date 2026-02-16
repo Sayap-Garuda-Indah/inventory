@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 from db.pool import fetch_all, fetch_one, execute
-from schemas.issues import IssueCreate, IssueUpdate, IssueResponse, IssueListResponse
+from schemas.issues import IssueCreate, IssueUpdate
 from datetime import datetime, timezone
 
 class IssueRepository:
@@ -11,14 +11,15 @@ class IssueRepository:
         limit: int = 50,
         offset: int = 0,
         search: Optional[str] = None,
-        status_filter: Optional[str] = None
+        status_filter: Optional[str] = None,
+        requested_by: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
         Get all issues with optional filters.
         """
         try:
             where_conditions = ["(note IS NULL OR note NOT LIKE %s)"]
-            params = [f"{IssueRepository.DELETED_NOTE_PREFIX}%"]
+            params: List[Any] = [f"{IssueRepository.DELETED_NOTE_PREFIX}%"]
 
             if search:
                 where_conditions.append("(code LIKE %s OR status LIKE %s)")
@@ -28,6 +29,10 @@ class IssueRepository:
             if status_filter:
                 where_conditions.append("status = %s")
                 params.append(status_filter)
+
+            if requested_by is not None:
+                where_conditions.append("requested_by = %s")
+                params.append(requested_by)
 
             where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
@@ -210,13 +215,21 @@ class IssueRepository:
             raise RuntimeError({str(e)})
     
     @staticmethod
-    def count() -> int:
+    def count(requested_by: Optional[int] = None) -> int:
         """
         Count all issues.
         """
         try:
-            query = "SELECT COUNT(1) as count FROM issues WHERE (note IS NULL OR note NOT LIKE %s)"
-            result = fetch_one(query, (f"{IssueRepository.DELETED_NOTE_PREFIX}%",))
+            where_conditions = ["(note IS NULL OR note NOT LIKE %s)"]
+            params: List[Any] = [f"{IssueRepository.DELETED_NOTE_PREFIX}%"]
+
+            if requested_by is not None:
+                where_conditions.append("requested_by = %s")
+                params.append(requested_by)
+
+            where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+            query = f"SELECT COUNT(1) as count FROM issues {where_clause}"
+            result = fetch_one(query, tuple(params))
 
             if result is not None:
                 return result['count']
@@ -226,14 +239,18 @@ class IssueRepository:
             raise RuntimeError({str(e)})
 
     @staticmethod
-    def count_status(issue_status : str) -> int:
+    def count_status(issue_status : str, requested_by: Optional[int] = None) -> int:
         try:
             where_conditions = ["(note IS NULL OR note NOT LIKE %s)"]
-            params = [f"{IssueRepository.DELETED_NOTE_PREFIX}%"]
+            params: List[Any] = [f"{IssueRepository.DELETED_NOTE_PREFIX}%"]
 
             if issue_status:
                 where_conditions.append("status = %s")
                 params.append(issue_status)
+            
+            if requested_by is not None:
+                where_conditions.append("requested_by = %s")
+                params.append(requested_by)
 
             where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
@@ -252,10 +269,14 @@ class IssueRepository:
             raise RuntimeError({str(e)})
     
     @staticmethod
-    def count_with_filter(search: Optional[str] = None, status_filter: Optional[str] = None) -> int:
+    def count_with_filter(
+        search: Optional[str] = None, 
+        status_filter: Optional[str] = None, 
+        requested_by: Optional[int] = None
+    ) -> int:
         try:
             where_conditions = ["(note IS NULL OR note NOT LIKE %s)"]
-            params = [f"{IssueRepository.DELETED_NOTE_PREFIX}%"]
+            params: List[Any] = [f"{IssueRepository.DELETED_NOTE_PREFIX}%"]
 
             if search:
                 where_conditions.append("(code LIKE %s OR status LIKE %s)")
@@ -265,6 +286,10 @@ class IssueRepository:
             if status_filter:
                 where_conditions.append("status = %s")
                 params.append(status_filter)
+
+            if requested_by is not None:
+                where_conditions.append("requested_by = %s")
+                params.append(requested_by)
 
             where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
