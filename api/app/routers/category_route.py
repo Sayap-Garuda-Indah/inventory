@@ -92,7 +92,8 @@ def get_category(
         )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-@router.post("/", response_model=Category, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Category, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=Category, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 def create_category(
     category_data: CategoryCreate,
     current_user: UserRole = Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
@@ -168,11 +169,11 @@ def update_category(
         )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {str(e)}")
     
-@router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{category_id}", status_code=status.HTTP_200_OK)
 def delete_category(
     category_id: int = Path(..., gt=0, description="The ID of the category to delete"),
     current_user: dict = Depends(require_role(UserRole.ADMIN))
-) -> None:
+) -> dict:
     try:
         logger.info(
             "Category deletion requested",
@@ -182,7 +183,7 @@ def delete_category(
             }
         )
 
-        CategoryService.delete_category(category_id)
+        result = CategoryService.delete_category(category_id)
 
         logger.info(
             "Category deleted successfully",
@@ -191,6 +192,7 @@ def delete_category(
                 "category_id": category_id
             }
         )
+        return result
     except HTTPException:
         raise
     except Exception as e:

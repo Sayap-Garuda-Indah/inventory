@@ -1,10 +1,16 @@
 from typing import Optional, List, Dict, Any
-from db.pool import fetch_all, fetch_one, execute
-from db.base import QueryBuilder, DatabaseUtils, BaseRepository
+import pymysql as MySQLdb
+from db.pool import fetch_all, fetch_one, execute, get_db_transaction
+from db.base import QueryBuilder, DatabaseUtils
 from schemas.units import UnitCreate, UnitUpdate
 
 
 class UnitsRepository:
+    DELETED_NAME_PREFIX = "__deleted__"
+    FALLBACK_UNIT_NAME = "-"
+    FALLBACK_UNIT_SYMBOL = "-"
+    FALLBACK_UNIT_MULTIPLIER = 1
+
     @staticmethod
     def get_all(
         limit: int = 100,
@@ -12,8 +18,8 @@ class UnitsRepository:
         search: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         try:
-            conditions = []
-            params = []
+            conditions = ["name NOT LIKE %s", "name != %s"]
+            params = [f"{UnitsRepository.DELETED_NAME_PREFIX}%", UnitsRepository.FALLBACK_UNIT_NAME]
 
             search_term = DatabaseUtils.sanitize_search_term(search)
             search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["name", "symbol"])
@@ -40,8 +46,8 @@ class UnitsRepository:
     @staticmethod
     def count(search: Optional[str] = None) -> int:
         try:
-            conditions = []
-            params = []
+            conditions = ["name NOT LIKE %s", "name != %s"]
+            params = [f"{UnitsRepository.DELETED_NAME_PREFIX}%", UnitsRepository.FALLBACK_UNIT_NAME]
 
             search_term = DatabaseUtils.sanitize_search_term(search)
             search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["name", "symbol"])
@@ -66,8 +72,8 @@ class UnitsRepository:
     def get_by_id(unit_id: int) -> Optional[Dict[str, Any]]:
         try:
             DatabaseUtils.validate_id(unit_id, "Unit")
-            query = "SELECT * FROM units WHERE id = %s"
-            row = fetch_one(query, (unit_id,))
+            query = "SELECT * FROM units WHERE id = %s AND name NOT LIKE %s"
+            row = fetch_one(query, (unit_id, f"{UnitsRepository.DELETED_NAME_PREFIX}%"))
             
             return row
         except Exception as e:
@@ -78,8 +84,8 @@ class UnitsRepository:
         try:
             DatabaseUtils.validate_string(name, "name")
             
-            query = "SELECT * FROM units WHERE name = %s"
-            row = fetch_one(query, (name,))
+            query = "SELECT * FROM units WHERE name = %s AND name NOT LIKE %s"
+            row = fetch_one(query, (name, f"{UnitsRepository.DELETED_NAME_PREFIX}%"))
 
             return row
         except Exception as e:
@@ -90,10 +96,114 @@ class UnitsRepository:
         try:
             DatabaseUtils.validate_string(symbol, "symbol")
             
-            query = "SELECT * FROM units WHERE symbol = %s"
-            row = fetch_one(query, (symbol,))
+            query = "SELECT * FROM units WHERE symbol = %s AND name NOT LIKE %s"
+            row = fetch_one(query, (symbol, f"{UnitsRepository.DELETED_NAME_PREFIX}%"))
 
             return row
+        except Exception as e:
+            raise RuntimeError({str(e)})
+
+    @staticmethod
+    def get_or_create_fallback_unit() -> Dict[str, Any]:
+        try:
+            fallback = UnitsRepository.get_by_name(UnitsRepository.FALLBACK_UNIT_NAME)
+            if fallback:
+                return fallback
+
+            query = """
+                INSERT INTO units (name, symbol, multiplier)
+                VALUES (%s, %s, %s)
+            """
+            execute(
+                query,
+                (
+                    UnitsRepository.FALLBACK_UNIT_NAME,
+                    UnitsRepository.FALLBACK_UNIT_SYMBOL,
+                    UnitsRepository.FALLBACK_UNIT_MULTIPLIER,
+                ),
+            )
+
+            fallback = UnitsRepository.get_by_name(UnitsRepository.FALLBACK_UNIT_NAME)
+            if not fallback:
+                raise RuntimeError("Failed to create fallback unit '-'")
+
+            return fallback
+        except Exception as e:
+            raise RuntimeError({str(e)})
+
+    @staticmethod
+    def get_item_usage_count(unit_id: int) -> int:
+        try:
+            DatabaseUtils.validate_id(unit_id, "Unit")
+
+            query = "SELECT COUNT(*) AS count FROM items WHERE unit_id = %s"
+            result = fetch_one(query, (unit_id,))
+            if not result:
+                return 0
+
+            return int(result["count"])
+        except Exception as e:
+            raise RuntimeError({str(e)})
+
+    @staticmethod
+    def soft_delete_and_reassign(unit_id: int) -> Dict[str, Any]:
+        try:
+            DatabaseUtils.validate_id(unit_id, "Unit")
+
+            fallback_unit = UnitsRepository.get_or_create_fallback_unit()
+            fallback_id = int(fallback_unit["id"])
+
+            if fallback_id == unit_id:
+                raise RuntimeError("Fallback unit '-' cannot be deleted.")
+
+            with get_db_transaction() as connection:
+                cursor = connection.cursor(MySQLdb.cursors.DictCursor)
+                try:
+                    cursor.execute(
+                        """
+                        SELECT id, name, symbol
+                        FROM units
+                        WHERE id = %s AND name NOT LIKE %s
+                        FOR UPDATE
+                        """,
+                        (unit_id, f"{UnitsRepository.DELETED_NAME_PREFIX}%"),
+                    )
+                    target_unit = cursor.fetchone()
+                    if not target_unit:
+                        raise RuntimeError(f"Unit with id {unit_id} not found")
+
+                    cursor.execute(
+                        "SELECT COUNT(*) AS count FROM items WHERE unit_id = %s FOR UPDATE",
+                        (unit_id,),
+                    )
+                    usage_row = cursor.fetchone()
+                    affected_items = int(usage_row["count"]) if usage_row else 0
+
+                    if affected_items > 0:
+                        cursor.execute(
+                            "UPDATE items SET unit_id = %s WHERE unit_id = %s",
+                            (fallback_id, unit_id),
+                        )
+
+                    deleted_name = f"{UnitsRepository.DELETED_NAME_PREFIX}{unit_id}"
+                    cursor.execute(
+                        "UPDATE units SET name = %s WHERE id = %s",
+                        (deleted_name, unit_id),
+                    )
+
+                    if cursor.rowcount <= 0:
+                        raise RuntimeError("Failed to soft delete unit")
+                finally:
+                    cursor.close()
+
+            return {
+                "deleted_unit_id": unit_id,
+                "deleted_unit_name": target_unit["name"],
+                "deleted_unit_symbol": target_unit["symbol"],
+                "reassigned_items": affected_items,
+                "replacement_unit_name": fallback_unit["name"],
+                "replacement_unit_id": fallback_id,
+            }
         except Exception as e:
             raise RuntimeError({str(e)})
 
@@ -102,7 +212,7 @@ class UnitsRepository:
     def create(unit_data: UnitCreate) -> Dict[str, Any]:
         try:
             query = """
-                INSERT INTO units (name, symbol, description)
+                INSERT INTO units (name, symbol, multiplier)
                 VALUES (%s, %s, %s)
             """
             execute(query, (unit_data.name, unit_data.symbol, unit_data.multiplier))
@@ -133,7 +243,7 @@ class UnitsRepository:
                 params.append(unit_data.symbol)
 
             if unit_data.multiplier is not None:
-                set_clause.append("description = %s")
+                set_clause.append("multiplier = %s")
                 params.append(unit_data.multiplier)
 
             if not set_clause:
@@ -160,18 +270,8 @@ class UnitsRepository:
     @staticmethod
     def delete(unit_id: int) -> bool:
         try:
-            DatabaseUtils.validate_id(unit_id, "Unit")
-            
-            check_query = "SELECT COUNT(1) AS count FROM units WHERE id = %s"
-            result = fetch_one(check_query, (unit_id,))
-
-            if result and result['count'] > 0:
-                raise RuntimeError(f"Cannot delete unit with id {unit_id} as it is referenced by other records.")
-            
-            query = "DELETE FROM units WHERE id = %s"
-            rows_affected = execute(query, (unit_id,))
-
-            return rows_affected > 0
+            result = UnitsRepository.soft_delete_and_reassign(unit_id)
+            return bool(result)
         except Exception as e:
             raise RuntimeError({str(e)})
 
@@ -181,7 +281,24 @@ class UnitsRepository:
             DatabaseUtils.validate_string(name, "name")
             if exclude_id is not None:
                 DatabaseUtils.validate_id(exclude_id, "Unit")
-            return BaseRepository.exists_by_field("units", "name", name.strip(), exclude_id)
+            if exclude_id is not None:
+                query = """
+                    SELECT 1
+                    FROM units
+                    WHERE name = %s AND id != %s AND name NOT LIKE %s
+                    LIMIT 1
+                """
+                row = fetch_one(query, (name.strip(), exclude_id, f"{UnitsRepository.DELETED_NAME_PREFIX}%"))
+            else:
+                query = """
+                    SELECT 1
+                    FROM units
+                    WHERE name = %s AND name NOT LIKE %s
+                    LIMIT 1
+                """
+                row = fetch_one(query, (name.strip(), f"{UnitsRepository.DELETED_NAME_PREFIX}%"))
+
+            return row is not None
         except Exception as e:
             raise RuntimeError({str(e)})
 
@@ -191,7 +308,24 @@ class UnitsRepository:
             DatabaseUtils.validate_string(symbol, "symbol")
             if exclude_id is not None:
                 DatabaseUtils.validate_id(exclude_id, "Unit")
-            return BaseRepository.exists_by_field("units", "symbol", symbol.strip(), exclude_id)
+            if exclude_id is not None:
+                query = """
+                    SELECT 1
+                    FROM units
+                    WHERE symbol = %s AND id != %s AND name NOT LIKE %s
+                    LIMIT 1
+                """
+                row = fetch_one(query, (symbol.strip(), exclude_id, f"{UnitsRepository.DELETED_NAME_PREFIX}%"))
+            else:
+                query = """
+                    SELECT 1
+                    FROM units
+                    WHERE symbol = %s AND name NOT LIKE %s
+                    LIMIT 1
+                """
+                row = fetch_one(query, (symbol.strip(), f"{UnitsRepository.DELETED_NAME_PREFIX}%"))
+
+            return row is not None
         except Exception as e:
             raise RuntimeError({str(e)})
 
@@ -199,6 +333,13 @@ class UnitsRepository:
     def exists_by_id(unit_id: int) -> bool:
         try:
             DatabaseUtils.validate_id(unit_id, "Unit")
-            return BaseRepository.exists_by_field("units", "id", unit_id)
+            query = """
+                SELECT 1
+                FROM units
+                WHERE id = %s AND name NOT LIKE %s
+                LIMIT 1
+            """
+            row = fetch_one(query, (unit_id, f"{UnitsRepository.DELETED_NAME_PREFIX}%"))
+            return row is not None
         except Exception as e:
             raise RuntimeError({str(e)})

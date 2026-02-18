@@ -27,3 +27,10 @@ class UnitListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class UnitDeleteResponse(BaseModel):
+    message: str
+    warning: Optional[str] = None
+    reassigned_items: int
+    replacement_unit_name: str

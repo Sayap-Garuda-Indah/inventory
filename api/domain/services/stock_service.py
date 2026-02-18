@@ -205,9 +205,30 @@ class StockService:
                 float(existing["qty"]),
                 allow_negative,
             )
-            cursor.execute("DELETE FROM stock_tx WHERE id = %s", (tx_id,))
+            deleted_note = (
+                f"{StockTxRepository.DELETED_NOTE_PREFIX} "
+                f"{existing.get('note') or ''}"
+            ).strip()[:255]
+            cursor.execute(
+                """
+                UPDATE stock_tx
+                SET note = %s
+                WHERE id = %s
+                  AND (note IS NULL OR note NOT LIKE %s)
+                """,
+                (deleted_note, tx_id, f"{StockTxRepository.DELETED_NOTE_PREFIX}%"),
+            )
+            if cursor.rowcount <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to soft delete transaction",
+                )
 
-        return {"message": "Transaction deleted successfully"}
+        return {
+            "message": "Transaction soft-deleted successfully",
+            "warning": "Stock impact from this transaction has been reversed; the transaction is hidden from active list.",
+            "transaction_id": tx_id,
+        }
 
     @staticmethod
     def _validate_tx_inputs(item_id: int, location_id: int, tx_type: str, qty: float) -> None:

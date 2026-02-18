@@ -77,7 +77,8 @@ def get_user(
             detail=str(e)
         )
 
-@router.post("/register", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.post("", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.post("/register", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))], include_in_schema=False)
 def create_user(
     user_data: UserCreate,
     current_user=Depends(require_role(UserRole.ADMIN))
@@ -173,7 +174,7 @@ def update_user(
 def delete_user(
     user_id: int = Path(..., description="The ID of the user to delete"),
     current_user=Depends(require_role(UserRole.ADMIN))
-) -> None:
+) -> dict:
     """
     Delete a user.
     """
@@ -193,7 +194,7 @@ def delete_user(
                 detail="Users cannot delete their own account."
             )
         
-        UserService.delete_user(user_id)
+        result = UserService.delete_user(user_id)
 
         logger.info(
             "User deleted successfully",
@@ -203,7 +204,7 @@ def delete_user(
             }
         )
 
-        return None
+        return result
     except HTTPException:
         raise
     except Exception as e:
