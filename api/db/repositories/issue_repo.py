@@ -1,27 +1,38 @@
 from typing import List, Optional, Dict, Any
 from db.pool import fetch_all, fetch_one, execute
-from schemas.issues import IssueCreate, IssueUpdate, IssueResponse, IssueListResponse
+from schemas.issues import IssueCreate, IssueUpdate
 from datetime import datetime, timezone
 
 class IssueRepository:
+    DELETED_NOTE_PREFIX = "__deleted__"
+
     @staticmethod
     def get_all(
         limit: int = 50,
         offset: int = 0,
         search: Optional[str] = None,
-        status_filter: Optional[str] = None
+        status_filter: Optional[str] = None,
+        requested_by: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
         Get all issues with optional filters.
         """
         try:
-            where_conditions = []
-            params = []
+            where_conditions = ["(note IS NULL OR note NOT LIKE %s)"]
+            params: List[Any] = [f"{IssueRepository.DELETED_NOTE_PREFIX}%"]
 
             if search:
                 where_conditions.append("(code LIKE %s OR status LIKE %s)")
                 search_param = f"%{search}%"
                 params.extend([search_param, search_param])
+
+            if status_filter:
+                where_conditions.append("status = %s")
+                params.append(status_filter)
+
+            if requested_by is not None:
+                where_conditions.append("requested_by = %s")
+                params.append(requested_by)
 
             where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
@@ -50,9 +61,9 @@ class IssueRepository:
             query = """
                 SELECT id, code, status, requested_by, approved_by, issued_at, note, updated_at
                 FROM issues
-                WHERE id = %s
+                WHERE id = %s AND (note IS NULL OR note NOT LIKE %s)
                 """
-            return fetch_one(query, (issue_id,))
+            return fetch_one(query, (issue_id, f"{IssueRepository.DELETED_NOTE_PREFIX}%"))
         except Exception as e:
             raise RuntimeError({str(e)})
 
@@ -68,9 +79,9 @@ class IssueRepository:
             query = """
                 SELECT id, code, status, requested_by, approved_by, issued_at, note, updated_at
                 FROM issues
-                WHERE code = %s
+                WHERE code = %s AND (note IS NULL OR note NOT LIKE %s)
                 """
-            return fetch_one(query, (issue_code,))
+            return fetch_one(query, (issue_code, f"{IssueRepository.DELETED_NOTE_PREFIX}%"))
         except Exception as e:
             raise RuntimeError({str(e)})
 
@@ -158,9 +169,30 @@ class IssueRepository:
         try:
             if not isinstance(issue_id, int) or issue_id <= 0:
                 raise ValueError("Invalid issue ID")
-            
-            query = "DELETE FROM issues WHERE id = %s"
-            rows_affected = execute(query, (issue_id,))
+
+            existing = fetch_one("SELECT id, code, note FROM issues WHERE id = %s", (issue_id,))
+            if not existing:
+                return False
+
+            current_note = existing.get("note") or ""
+            deleted_note = (
+                f"{IssueRepository.DELETED_NOTE_PREFIX} "
+                f"{datetime.now(timezone.utc).isoformat()} | {current_note}"
+            )
+            query = """
+                UPDATE issues
+                SET status = 'CANCELLED', note = %s, updated_at = %s
+                WHERE id = %s AND (note IS NULL OR note NOT LIKE %s)
+            """
+            rows_affected = execute(
+                query,
+                (
+                    deleted_note.strip()[:255],
+                    datetime.now(timezone.utc),
+                    issue_id,
+                    f"{IssueRepository.DELETED_NOTE_PREFIX}%",
+                ),
+            )
 
             if rows_affected > 0:
                 return True
@@ -183,13 +215,21 @@ class IssueRepository:
             raise RuntimeError({str(e)})
     
     @staticmethod
-    def count() -> int:
+    def count(requested_by: Optional[int] = None) -> int:
         """
         Count all issues.
         """
         try:
-            query = "SELECT COUNT(1) as count FROM issues"
-            result = fetch_one(query)
+            where_conditions = ["(note IS NULL OR note NOT LIKE %s)"]
+            params: List[Any] = [f"{IssueRepository.DELETED_NOTE_PREFIX}%"]
+
+            if requested_by is not None:
+                where_conditions.append("requested_by = %s")
+                params.append(requested_by)
+
+            where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+            query = f"SELECT COUNT(1) as count FROM issues {where_clause}"
+            result = fetch_one(query, tuple(params))
 
             if result is not None:
                 return result['count']
@@ -199,14 +239,18 @@ class IssueRepository:
             raise RuntimeError({str(e)})
 
     @staticmethod
-    def count_status(issue_status : str) -> int:
+    def count_status(issue_status : str, requested_by: Optional[int] = None) -> int:
         try:
-            where_conditions = []
-            params = []
+            where_conditions = ["(note IS NULL OR note NOT LIKE %s)"]
+            params: List[Any] = [f"{IssueRepository.DELETED_NOTE_PREFIX}%"]
 
             if issue_status:
                 where_conditions.append("status = %s")
                 params.append(issue_status)
+            
+            if requested_by is not None:
+                where_conditions.append("requested_by = %s")
+                params.append(requested_by)
 
             where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
@@ -225,10 +269,14 @@ class IssueRepository:
             raise RuntimeError({str(e)})
     
     @staticmethod
-    def count_with_filter(search: Optional[str] = None, status_filter: Optional[str] = None) -> int:
+    def count_with_filter(
+        search: Optional[str] = None, 
+        status_filter: Optional[str] = None, 
+        requested_by: Optional[int] = None
+    ) -> int:
         try:
-            where_conditions = []
-            params = []
+            where_conditions = ["(note IS NULL OR note NOT LIKE %s)"]
+            params: List[Any] = [f"{IssueRepository.DELETED_NOTE_PREFIX}%"]
 
             if search:
                 where_conditions.append("(code LIKE %s OR status LIKE %s)")
@@ -238,6 +286,10 @@ class IssueRepository:
             if status_filter:
                 where_conditions.append("status = %s")
                 params.append(status_filter)
+
+            if requested_by is not None:
+                where_conditions.append("requested_by = %s")
+                params.append(requested_by)
 
             where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 

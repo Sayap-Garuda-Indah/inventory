@@ -126,7 +126,7 @@ class CategoryService:
             raise HTTPException(status_code=500, detail="Internal server error")
         
     @staticmethod
-    def delete_category(category_id: int) -> None:
+    def delete_category(category_id: int) -> dict:
         """
         Delete a category by its ID.
         """
@@ -137,9 +137,35 @@ class CategoryService:
             existing_category = CategoryRepository.get_by_id(category_id)
             if not existing_category:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Category {category_id} not found")
-            
-            CategoryRepository.delete(category_id)
-            logger.info(f"Category with ID {category_id} deleted")
+
+            if existing_category["name"] == CategoryRepository.FALLBACK_CATEGORY_NAME:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Fallback category '-' cannot be deleted")
+
+            result = CategoryRepository.soft_delete_and_reassign(category_id)
+
+            logger.info(
+                "Category soft-deleted successfully",
+                extra={
+                    "category_id": category_id,
+                    "category_name": result["deleted_category_name"],
+                    "reassigned_items": result["reassigned_items"],
+                    "replacement_category_id": result["replacement_category_id"],
+                },
+            )
+
+            warning = None
+            if result["reassigned_items"] > 0:
+                warning = (
+                    f"{result['reassigned_items']} item(s) were linked to this category "
+                    f"and reassigned to '{result['replacement_category_name']}'."
+                )
+
+            return {
+                "message": f"Category '{result['deleted_category_name']}' soft-deleted successfully.",
+                "warning": warning,
+                "reassigned_items": result["reassigned_items"],
+                "replacement_category_name": result["replacement_category_name"],
+            }
         except HTTPException:
             raise
         except Exception as e:

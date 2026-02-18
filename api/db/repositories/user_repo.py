@@ -5,6 +5,8 @@ from schemas.users import UserCreate, UserUpdate
 from datetime import datetime, timezone
 
 class UserRepository:
+    DELETED_TX_NOTE_PREFIX = "__deleted__"
+
     @staticmethod
     def get_all(
         active_only: bool = True, 
@@ -261,13 +263,54 @@ class UserRepository:
             if not isinstance(user_id, int) or user_id <= 0:
                 raise ValueError("invalid user id")
             
-            query = "UPDATE users SET active = %s WHERE id = %s"
-            rows_affected = execute(query, (False, user_id))
+            query = "UPDATE users SET active = %s WHERE id = %s AND active = %s"
+            rows_affected = execute(query, (False, user_id, True))
 
             if rows_affected > 0:
                 return True
 
             return False
+        except Exception as e:
+            raise RuntimeError({str(e)})
+
+    @staticmethod
+    def get_dependency_summary(user_id: int) -> Dict[str, int]:
+        try:
+            DatabaseUtils.validate_id(user_id, "User")
+
+            owned_items = fetch_one(
+                "SELECT COUNT(*) AS count FROM items WHERE owner_user_id = %s",
+                (user_id,),
+            )
+            requested_issues = fetch_one(
+                "SELECT COUNT(*) AS count FROM issues WHERE requested_by = %s",
+                (user_id,),
+            )
+            approved_issues = fetch_one(
+                "SELECT COUNT(*) AS count FROM issues WHERE approved_by = %s",
+                (user_id,),
+            )
+            stock_transactions = fetch_one(
+                """
+                SELECT COUNT(*) AS count
+                FROM stock_tx
+                WHERE user_id = %s
+                  AND (note IS NULL OR note NOT LIKE %s)
+                """,
+                (user_id, f"{UserRepository.DELETED_TX_NOTE_PREFIX}%"),
+            )
+            audit_logs = fetch_one(
+                "SELECT COUNT(*) AS count FROM audit_log WHERE actor_user_id = %s",
+                (user_id,),
+            )
+
+            return {
+                "owned_items": int(owned_items["count"]) if owned_items else 0,
+                "requested_issues": int(requested_issues["count"]) if requested_issues else 0,
+                "approved_issues": int(approved_issues["count"]) if approved_issues else 0,
+                "stock_transactions": int(stock_transactions["count"]) if stock_transactions else 0,
+                "audit_logs": int(audit_logs["count"]) if audit_logs else 0,
+            }
         except Exception as e:
             raise RuntimeError({str(e)})
 
@@ -395,5 +438,23 @@ class UserRepository:
                 return True
             
             return False
+        except Exception as e:
+            raise RuntimeError({str(e)})
+
+    @staticmethod
+    def get_first_active_admin() -> Optional[Dict[str, Any]]:
+        """
+        Get the first active admin user
+        """
+        try:
+            query = """
+                SELECT id, email, password_hash, name, role, active, created_at
+                FROM users
+                WHERE role = %s AND active = 1
+                ORDER BY id ASC
+                LIMIT 1
+                """
+            
+            return fetch_one(query, ("ADMIN",))
         except Exception as e:
             raise RuntimeError({str(e)})

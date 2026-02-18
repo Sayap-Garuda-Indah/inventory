@@ -1,7 +1,7 @@
 from typing import Optional, List
 from fastapi import HTTPException, status
 from db.repositories.units_repo import UnitsRepository
-from schemas.units import UnitCreate, UnitUpdate, UnitResponse, UnitListResponse
+from schemas.units import UnitCreate, UnitUpdate, UnitResponse, UnitListResponse, UnitDeleteResponse
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -206,8 +206,8 @@ class UnitService:
 
     
     @staticmethod
-    def delete_unit(unit_id: int) -> dict:
-        """Delete a unit with safety checks"""
+    def delete_unit(unit_id: int) -> UnitDeleteResponse:
+        """Soft delete unit and reassign related items to fallback unit."""
         try:
             if not isinstance(unit_id, int) or unit_id <= 0:
                 raise HTTPException(
@@ -221,39 +221,45 @@ class UnitService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Unit with id {unit_id} not found"
                 )
-            
-            # Delete
-            success = UnitsRepository.delete(unit_id)
-            if not success:
+
+            if existing_unit["name"] == UnitsRepository.FALLBACK_UNIT_NAME:
                 raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to delete unit."
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Fallback unit '-' cannot be deleted."
                 )
-            
+
+            result = UnitsRepository.soft_delete_and_reassign(unit_id)
+
+            warning = None
+            if result["reassigned_items"] > 0:
+                warning = (
+                    f"{result['reassigned_items']} item(s) were linked to this unit "
+                    f"and have been reassigned to '{result['replacement_unit_name']}'."
+                )
+
             logger.info(
-                "Unit deleted successfully",
+                "Unit soft-deleted successfully",
                 extra={
                     "unit_id": unit_id,
-                    "unit_name": existing_unit["name"],
-                    "unit_symbol": existing_unit["symbol"]
+                    "unit_name": result["deleted_unit_name"],
+                    "unit_symbol": result["deleted_unit_symbol"],
+                    "reassigned_items": result["reassigned_items"],
+                    "replacement_unit_id": result["replacement_unit_id"],
                 }
             )
 
-            message = {
-                "message": f"Unit '{existing_unit['name']}' ({existing_unit['symbol']}) deleted successfully."
-            }
-
-            return message
+            return UnitDeleteResponse(
+                message=(
+                    f"Unit '{result['deleted_unit_name']}' ({result['deleted_unit_symbol']}) "
+                    "soft-deleted successfully."
+                ),
+                warning=warning,
+                reassigned_items=result["reassigned_items"],
+                replacement_unit_name=result["replacement_unit_name"],
+            )
         except HTTPException: 
             raise
         except Exception as e:
-            # Check if it's a referential integrity error
-            if "items are using this unit" in str(e).lower():
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Cannot delete unit with id {unit_id} as there are items using this unit."
-                )
-            
             logger.error(
                 "Failed to delete unit",
                 extra={"error": str(e), "unit_id": unit_id}

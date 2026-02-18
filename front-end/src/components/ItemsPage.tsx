@@ -82,7 +82,8 @@ function ItemsPage() {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     
-    const [isLoading, setIsLoading] = useState(true);
+    const [initialLoading, setInitialLoading] = useState(true);
+    const [itemsLoading, setItemsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -99,6 +100,7 @@ function ItemsPage() {
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
+    const isStaff = currentUser?.role === 'STAFF';
 
     useEffect(() => {
         if (!authLoading && !currentUser) {
@@ -108,7 +110,7 @@ function ItemsPage() {
 
     useEffect(() => {
         fetchMetadata();
-    }, []);
+    }, [isStaff, currentUser?.id, currentUser?.name]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => {
@@ -120,31 +122,39 @@ function ItemsPage() {
 
     useEffect(() => {
         fetchItems();
-    }, [currentPage, debouncedSearch, statusFilter]);
+    }, [currentPage, debouncedSearch]);
 
     const fetchMetadata = async () => {
         if (!token) return;
 
         try {
-            const [categoriesRes, unitsRes, usersRes] = await Promise.all([
+            const [categoriesRes, unitsRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/categories?page=1&page_size=100`, {
                     headers: { 'Authorization': `Bearer ${token}` },
                 }),
                 fetch(`${API_BASE_URL}/units?page=1&page_size=100`, {
                     headers: { 'Authorization': `Bearer ${token}` },
                 }),
-                fetch(`${API_BASE_URL}/users?page=1&page_size=100&active_only=1`, {
-                    headers: { 'Authorization': `Bearer ${token}` },
-                }),
             ]);
 
             const catData = await categoriesRes.json();
             const unitData = await unitsRes.json();
-            const userData = await usersRes.json();
 
             setCategories(Array.isArray(catData) ? catData : []);
             setUnits(unitData.units || []);
-            setUsers(Array.isArray(userData) ? userData : (userData.users || []));
+
+            if (isStaff && currentUser?.id) {
+                setUsers([{
+                    id: currentUser.id,
+                    name: currentUser.name,
+                }]);
+            } else {
+                const usersRes = await fetch(`${API_BASE_URL}/users?page=1&page_size=100&active_only=1`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                });
+                const userData = await usersRes.json();
+                setUsers(Array.isArray(userData) ? userData : (userData.users || []));
+            }
         } catch (error) {
             console.error('Error fetching metadata:', error);
         }
@@ -153,7 +163,7 @@ function ItemsPage() {
     const fetchItems = async () => {
         if (!token) return;
 
-        setIsLoading(true);
+        setItemsLoading(true);
         setError(null);
 
         try {
@@ -185,7 +195,8 @@ function ItemsPage() {
         } catch (err) {
             setError((err as Error).message || 'Failed to load items');
         } finally {
-            setIsLoading(false);
+            setItemsLoading(false);
+            setInitialLoading(false);
         }
     };
 
@@ -364,6 +375,11 @@ function ItemsPage() {
 
     const filteredItems = useMemo(() => {
         let filtered = items;
+
+        if (isStaff && currentUser?.id) {
+            filtered = filtered.filter((item) => item.owner_user_id === currentUser.id);
+        }
+
         const term = debouncedSearch.trim().toLowerCase();
 
         if (term) {
@@ -382,7 +398,7 @@ function ItemsPage() {
         }
 
         return filtered;
-    }, [items, debouncedSearch, statusFilter]);
+    }, [items, debouncedSearch, statusFilter, isStaff, currentUser?.id]);
 
     const sortedItems = useMemo(() => {
         if (!sortConfig) return filteredItems;
@@ -402,7 +418,7 @@ function ItemsPage() {
         return data;
     }, [filteredItems, sortConfig]);
 
-    if (authLoading || isLoading) {
+    if (authLoading || initialLoading) {
         return (
             <div className="flex items-center justify-center py-12">
                 <Spinner size="lg" />
@@ -500,7 +516,13 @@ function ItemsPage() {
                         </div>
                     </CardHeader>
                     <CardBody className="p-0">
-                        {sortedItems.length === 0 ? (
+                        {itemsLoading && (
+                            <div className="flex items-center gap-2 text-sm text-gray-500 px-6 pt-4">
+                                <Spinner size="sm" />
+                                <span>Loading items...</span>
+                            </div>
+                        )}
+                        {sortedItems.length === 0 && !itemsLoading ? (
                             <div className="text-center text-gray-500 py-12">
                                 <Inbox className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                                 <p className="text-lg">No items found</p>
@@ -573,6 +595,7 @@ function ItemsPage() {
                                                                 size="sm"
                                                                 className="text-xs"
                                                                 onClick={() => navigate(`/items/${item.id}/edit`)}
+                                                                disabled={isStaff && item.owner_user_id !== currentUser?.id}
                                                             >
                                                                 <Pencil className="w-4 h-4 mr-1" />
                                                                 Edit
@@ -751,6 +774,7 @@ function ItemsPage() {
                                     navigate(`/items/${selectedItem.id}/edit`);
                                     setShowModal(false);
                                 }}
+                                disabled={isStaff && selectedItem.owner_user_id !== currentUser?.id}
                             >
                                 <Pencil className="w-4 h-4 mr-2" />
                                 Edit

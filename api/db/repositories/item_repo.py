@@ -4,12 +4,15 @@ from db.base import QueryBuilder, DatabaseUtils, BaseRepository, DatabaseConstan
 from schemas.items import ItemCreate, ItemUpdate
 
 class ItemRepository:
+    DELETED_TX_NOTE_PREFIX = "__deleted__"
+
     @staticmethod
     def get_all(
         active_only: bool = True,
         limit: int = 50,
         offset: int = 0,
-        search: Optional[str] = None
+        search: Optional[str] = None,
+        owner_user_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
         Get all items with optional filters.
@@ -33,6 +36,10 @@ class ItemRepository:
                     if search_condition:
                         conditions.append(search_condition)
                         params.extend(search_params)
+
+            if owner_user_id is not None:
+                conditions.append("owner_user_id = %s")
+                params.append(owner_user_id)
 
             where_clause, params = QueryBuilder.build_where_clause(conditions, params)
 
@@ -185,12 +192,54 @@ class ItemRepository:
         """
         try:
             DatabaseUtils.validate_id(item_id, "Item")
-            return BaseRepository.soft_delete(DatabaseConstants.TABLE_ITEMS, item_id)
+            query = "UPDATE items SET active = 0 WHERE id = %s AND active = 1"
+            rows_affected = execute(query, (item_id,))
+            return rows_affected > 0
         except Exception as e:
             raise RuntimeError(str(e))
 
     @staticmethod
-    def count(active_only: bool = True, search: Optional[str] = None) -> int:
+    def get_dependency_summary(item_id: int) -> Dict[str, int]:
+        try:
+            DatabaseUtils.validate_id(item_id, "Item")
+
+            issue_items = fetch_one(
+                "SELECT COUNT(*) AS count FROM issue_items WHERE item_id = %s",
+                (item_id,),
+            )
+            stock_levels = fetch_one(
+                "SELECT COUNT(*) AS count FROM stock_levels WHERE item_id = %s",
+                (item_id,),
+            )
+            stock_transactions = fetch_one(
+                """
+                SELECT COUNT(*) AS count
+                FROM stock_tx
+                WHERE item_id = %s
+                  AND (note IS NULL OR note NOT LIKE %s)
+                """,
+                (item_id, f"{ItemRepository.DELETED_TX_NOTE_PREFIX}%"),
+            )
+            audit_scans = fetch_one(
+                "SELECT COUNT(*) AS count FROM audit_scans WHERE item_id = %s",
+                (item_id,),
+            )
+
+            return {
+                "issue_items": int(issue_items["count"]) if issue_items else 0,
+                "stock_levels": int(stock_levels["count"]) if stock_levels else 0,
+                "stock_transactions": int(stock_transactions["count"]) if stock_transactions else 0,
+                "audit_scans": int(audit_scans["count"]) if audit_scans else 0,
+            }
+        except Exception as e:
+            raise RuntimeError(str(e))
+
+    @staticmethod
+    def count(
+        active_only: bool = True, 
+        search: Optional[str] = None,
+        owner_user_id: Optional[int] = None
+    ) -> int:
         """
         Count items with optional filters.
         """
@@ -201,6 +250,10 @@ class ItemRepository:
             if active_only:
                 conditions.append("active = %s")
                 params.append(True)
+                
+            if owner_user_id is not None:
+                conditions.append("owner_user_id = %s")
+                params.append(owner_user_id)
 
             search_term = DatabaseUtils.sanitize_search_term(search)
             search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["item_code", "name"])
@@ -242,7 +295,14 @@ class ItemRepository:
         """
         try:
             DatabaseUtils.validate_id(item_id, "Item")
-            return BaseRepository.exists_by_field(DatabaseConstants.TABLE_ITEMS, "id", item_id)
+            query = """
+                SELECT 1
+                FROM items
+                WHERE id = %s AND active = 1
+                LIMIT 1
+            """
+            result = fetch_one(query, (item_id,))
+            return result is not None
         except Exception as e:
             raise RuntimeError(str(e))
         

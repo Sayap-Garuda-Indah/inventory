@@ -3,6 +3,9 @@ from db.pool import fetch_all, fetch_one, execute
 from db.base import QueryBuilder, DatabaseUtils
 
 class StockLevelsRepository:
+    DELETED_LOCATION_NAME_PATTERN = "__deleted__%"
+    DELETED_LOCATION_CODE_PATTERN = "DEL_%"
+
     @staticmethod
     def get_by_item_location(item_id: int, location_id: int) -> Optional[Dict[str, Any]]:
         try:
@@ -77,20 +80,30 @@ class StockLevelsRepository:
                 SELECT
                     sl.id,
                     sl.item_id,
-                    i.item_code,
-                    i.name AS item_name,
+                    COALESCE(i.item_code, '-') AS item_code,
+                    COALESCE(i.name, '-') AS item_name,
                     sl.location_id,
-                    l.name AS location_name,
+                    COALESCE(l.name, '-') AS location_name,
                     sl.qty_on_hand,
                     sl.updated_at
                 FROM stock_levels sl
-                JOIN items i ON sl.item_id = i.id
-                JOIN locations l ON sl.location_id = l.id
+                LEFT JOIN items i
+                    ON sl.item_id = i.id
+                   AND i.active = 1
+                LEFT JOIN locations l
+                    ON sl.location_id = l.id
+                   AND l.active = 1
+                   AND l.name NOT LIKE %s
+                   AND l.code NOT LIKE %s
                 {where_clause}
                 ORDER BY sl.updated_at DESC
                 LIMIT %s OFFSET %s
             """
-            params.extend([page_size, offset])
+            params = [
+                StockLevelsRepository.DELETED_LOCATION_NAME_PATTERN,
+                StockLevelsRepository.DELETED_LOCATION_CODE_PATTERN,
+            ] + params
+            params.extend([str(page_size), str(offset)])
 
             return fetch_all(query, tuple(params))
         except Exception as e:
@@ -126,10 +139,20 @@ class StockLevelsRepository:
             query = f"""
                 SELECT COUNT(*) AS count
                 FROM stock_levels sl
-                JOIN items i ON sl.item_id = i.id
-                JOIN locations l ON sl.location_id = l.id
+                LEFT JOIN items i
+                    ON sl.item_id = i.id
+                   AND i.active = 1
+                LEFT JOIN locations l
+                    ON sl.location_id = l.id
+                   AND l.active = 1
+                   AND l.name NOT LIKE %s
+                   AND l.code NOT LIKE %s
                 {where_clause}
             """
+            params = [
+                StockLevelsRepository.DELETED_LOCATION_NAME_PATTERN,
+                StockLevelsRepository.DELETED_LOCATION_CODE_PATTERN,
+            ] + params
             result = fetch_one(query, tuple(params))
             return result["count"] if result else 0
         except Exception as e:

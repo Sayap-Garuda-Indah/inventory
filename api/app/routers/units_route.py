@@ -4,9 +4,7 @@ from schemas.users import UserRole
 from domain.services.unit_service import UnitService
 from app.dependencies import require_role
 from fastapi import APIRouter, Depends, Query, Path, HTTPException, status
-from app.dependencies import require_role
-from domain.services.unit_service import UnitService
-from schemas.units import UnitCreate, UnitUpdate, UnitResponse, UnitListResponse
+from schemas.units import UnitCreate, UnitUpdate, UnitResponse, UnitListResponse, UnitDeleteResponse
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/units", tags=["units"])
@@ -97,7 +95,8 @@ def get_unit(
             detail=str(e)
         )
 
-@router.post("/", response_model=UnitResponse)
+@router.post("", response_model=UnitResponse)
+@router.post("/", response_model=UnitResponse, include_in_schema=False)
 def create_unit(
     unit_data: UnitCreate,
     current_user=Depends(require_role(UserRole.ADMIN))
@@ -184,13 +183,13 @@ def update_unit(
             detail=str(e)
         )
 
-@router.delete("/{unit_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_role("admin"))])
+@router.delete("/{unit_id}", response_model=UnitDeleteResponse, status_code=status.HTTP_200_OK)
 def delete_unit(
     unit_id: int = Path(..., description="The ID of the unit to delete"),
     current_user=Depends(require_role(UserRole.ADMIN))
-) -> None:
+) -> UnitDeleteResponse:
     """
-    Delete an existing unit.
+    Soft delete an existing unit and reassign dependent items.
     """
     try:
         logger.info(
@@ -201,7 +200,7 @@ def delete_unit(
             }
         )
 
-        UnitService.delete_unit(unit_id)
+        response = UnitService.delete_unit(unit_id)
         
         logger.info(
             "Unit deleted successfully",
@@ -225,4 +224,4 @@ def delete_unit(
             detail=str(e)
         )
     
-    return None
+    return response
