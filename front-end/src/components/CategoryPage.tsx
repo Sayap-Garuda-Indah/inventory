@@ -39,6 +39,7 @@ function CategoryPage() {
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
+    const canManageCategories = currentUser?.role === 'ADMIN';
 
     useEffect(() => {
         if (!authLoading && !currentUser) {
@@ -79,6 +80,11 @@ function CategoryPage() {
     }, [fetchCategories]);
 
     const handleOpenModal = (category?: Category) => {
+        if (!canManageCategories) {
+            setError('Only ADMIN can create or edit category.');
+            return;
+        }
+
         if (category) {
             setEditingCategory(category);
             setFormName(category.name);
@@ -99,6 +105,10 @@ function CategoryPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!token) return;
+        if (!canManageCategories) {
+            setError('Only ADMIN can create or edit category.');
+            return;
+        }
 
         setError(null);
         setSuccess(null);
@@ -134,6 +144,10 @@ function CategoryPage() {
 
     const handleDelete = async (categoryId: number) => {
         if (!token) return;
+        if (!canManageCategories) {
+            setError('Only ADMIN can delete category.');
+            return;
+        }
         if (!window.confirm('Are you sure you want to delete this category?')) return;
 
         setError(null);
@@ -207,7 +221,7 @@ function CategoryPage() {
                         <h2 className="text-2xl font-bold text-gray-900">Categories</h2>
                         <p className="text-sm text-gray-500 mt-1">Manage item categories</p>
                     </div>
-                    {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
+                    {canManageCategories && (
                         <Button variant="primary" onClick={() => handleOpenModal()}>
                             <Plus className="w-4 h-4 mr-2" />
                             Add Category
@@ -282,7 +296,7 @@ function CategoryPage() {
                                                 </td>
                                                 <td className="font-semibold">{category.name}</td>
                                                 <td className="text-right">
-                                                    {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
+                                                    {canManageCategories && (
                                                         <div className="flex gap-2 justify-end">
                                                             <Button
                                                                 variant="outline-primary"
@@ -293,17 +307,15 @@ function CategoryPage() {
                                                                 <Pencil className="w-4 h-4 mr-1" />
                                                                 Edit
                                                             </Button>
-                                                            {currentUser?.role === 'ADMIN' && (
-                                                                <Button
-                                                                    variant="outline-danger"
-                                                                    size="sm"
-                                                                    className="text-xs"
-                                                                    onClick={() => handleDelete(category.id)}
-                                                                >
-                                                                    <Trash2 className="w-4 h-4 mr-1" />
-                                                                    Delete
-                                                                </Button>
-                                                            )}
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                className="text-xs"
+                                                                onClick={() => handleDelete(category.id)}
+                                                            >
+                                                                <Trash2 className="w-4 h-4 mr-1" />
+                                                                Delete
+                                                            </Button>
                                                         </div>
                                                     )}
                                                 </td>

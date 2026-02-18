@@ -3,6 +3,7 @@ from fastapi import HTTPException, status
 from db.repositories.issue_item_repo import IssueItemRepository
 from db.repositories.issue_repo import IssueRepository
 from db.repositories.item_repo import ItemRepository
+from schemas.users import UserRole
 from schemas.issue_items import (
     IssueItemCreate,
     IssueItemUpdate,
@@ -16,37 +17,83 @@ logger = get_logger(__name__)
 
 class IssueItemService:
     @staticmethod
+    def _is_staff(current_user: Dict[str, Any]) -> bool:
+        return str(current_user.get("role", "")).upper() == UserRole.STAFF.value
+    
+    @staticmethod
+    def _assert_issue_access(issue_id: int, current_user: dict) -> dict:
+        issue = IssueRepository.get_by_id(issue_id)
+        if not issue:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Issue {issue_id} not found"
+            )
+        if IssueItemService._is_staff(current_user) and issue.get("requested_by") != current_user.get("id"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access items for this issue"
+             )
+        
+        return issue
+
+    @staticmethod
+    def _assert_item_access(item_id: int, current_user: dict) -> dict:
+        item = ItemRepository.get_by_id(item_id)
+        if not item:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Item {item_id} not found"
+            )
+        
+        if IssueItemService._is_staff(current_user) and item.get("owner_user_id") != current_user.get("id"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this item"
+             )
+
+        return item
+
+
+    @staticmethod
     def get_all_issue_items(
         issue_id: Optional[Any] = None,
         item_id: Optional[Any] = None,
         page: int = 1,
-        page_size: int = 50
+        page_size: int = 50,
+        current_user: Dict[str, Any] | None = None
     ) -> IssueItemListResponse:
         try:
-            if page < 1:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Page number must be at least 1")
-            
-            if page_size < 1 or page_size > 100:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Page size must be between 1 and 100")
+            if current_user and IssueItemService._is_staff(current_user) and not issue_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Issue ID is required for staff users to filter issue items"
+                )
+            if issue_id and current_user:
+                IssueItemService._assert_issue_access(issue_id, current_user)
 
             offset = (page - 1) * page_size
-            issue_items_data = IssueItemRepository.get_all(
-                issue_id=issue_id,
-                item_id=item_id,
-                limit=page_size,
-                offset=offset
-            )
+            issue_items_data = IssueItemRepository.get_all(issue_id=issue_id, item_id=item_id, limit=page_size, offset=offset)
 
+            if current_user and IssueItemService._is_staff(current_user):
+                filtered = []
+                for row in issue_items_data:
+                    item = ItemRepository.get_by_id(row['item_id'])
+                    if item and item.get("owner_user_id") == current_user.get("id"):
+                        filtered.append(row)
+                issue_items_data = filtered
+            
             total = IssueItemRepository.count(issue_id=issue_id, item_id=item_id)
             issue_items = [IssueItemResponse(**item) for item in issue_items_data]
-            result = IssueItemListResponse(
+
+            response = IssueItemListResponse(
                 issue_item=issue_items,
                 total=total,
                 page=page,
-                page_size=page_size
+                page_size=page_size,
             )
-            
-            return result
+
+            return response
+
         except HTTPException:
             raise
         except Exception as e:
@@ -60,7 +107,7 @@ class IssueItemService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
         
     @staticmethod
-    def get_issue_item_by_id(issue_item_id: int) -> IssueItemResponse:
+    def get_issue_item_by_id(issue_item_id: int, current_user: dict) -> IssueItemResponse:
         try:
             if not isinstance(issue_item_id, int) or issue_item_id <= 0:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid issue item ID")
@@ -69,6 +116,8 @@ class IssueItemService:
             if not issue_item_data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue item {issue_item_id} not found")
             
+            IssueItemService._assert_issue_access(issue_item_data['issue_id'], current_user)
+            IssueItemService._assert_item_access(issue_item_data['item_id'], current_user)
             response = IssueItemResponse(**issue_item_data)
 
             return response
@@ -83,12 +132,22 @@ class IssueItemService:
                 })
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
     @staticmethod
-    def get_items_by_issue_id(issue_id: int) -> List[IssueItemResponse]:
+    def get_items_by_issue_id(issue_id: int, current_user: dict) -> List[IssueItemResponse]:
         try:
             if not isinstance(issue_id, int) or issue_id <= 0:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid issue ID")
             
+            IssueItemService._assert_issue_access(issue_id, current_user)
             issue_items_data = IssueItemRepository.get_by_issue_id(issue_id)
+
+            if IssueItemService._is_staff(current_user):
+                filtered = []
+                for row in issue_items_data:
+                    item = ItemRepository.get_by_id(row['item_id'])
+                    if item and item.get("owner_user_id") == current_user.get("id"):
+                        filtered.append(row)
+                issue_items_data = filtered
+
             issue_items = [IssueItemResponse(**item) for item in issue_items_data]
 
             return issue_items
@@ -104,7 +163,7 @@ class IssueItemService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
     @staticmethod
-    def create_issue_item(issue_item_data: IssueItemCreate) -> IssueItemResponse:
+    def create_issue_item(issue_item_data: IssueItemCreate, current_user: dict) -> IssueItemResponse:
         try:
             if not IssueRepository.exists_by_id(issue_item_data.issue_id):
                 logger.warning(
@@ -125,6 +184,9 @@ class IssueItemService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Item {issue_item_data.item_id} not found"
                 )
+            
+            IssueItemService._assert_issue_access(issue_item_data.issue_id, current_user)
+            IssueItemService._assert_item_access(issue_item_data.item_id, current_user)
             
             if IssueItemRepository.exists_by_issue_and_item(issue_item_data.issue_id, issue_item_data.item_id):
                 logger.warning(
@@ -174,7 +236,7 @@ class IssueItemService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
         
     @staticmethod
-    def create_bulk_issue_items(bulk_data: IssueItemBulkCreate) -> List[IssueItemResponse]:
+    def create_bulk_issue_items(bulk_data: IssueItemBulkCreate, current_user: dict) -> List[IssueItemResponse]:
         created_items = []
         try:
             if not IssueRepository.exists_by_id(bulk_data.issue_id):
@@ -183,6 +245,8 @@ class IssueItemService:
                     detail=f"Issue {bulk_data.issue_id} not found"
                 )
             
+            IssueItemService._assert_issue_access(bulk_data.issue_id, current_user)
+
             # Check if issue is in DRAFT status
             issue = IssueRepository.get_by_id(bulk_data.issue_id)
             if issue and issue['status'] not in ['DRAFT']:
@@ -199,7 +263,7 @@ class IssueItemService:
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Item {item['item_id']} not found"
                     )
-            
+                
             created_items_data = IssueItemRepository.create_bulk(bulk_data.issue_id, bulk_data.items)
 
             logger.info(
@@ -226,7 +290,7 @@ class IssueItemService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
     @staticmethod
-    def delete_issue_item(issue_item_id: int) -> dict:
+    def delete_issue_item(issue_item_id: int, current_user: dict) -> dict:
         try:
             if not isinstance(issue_item_id, int) or issue_item_id <= 0:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid issue item ID")
@@ -235,6 +299,9 @@ class IssueItemService:
             if not existing_item:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue item {issue_item_id} not found")
             
+            IssueItemService._assert_issue_access(existing_item['issue_id'], current_user)
+            IssueItemService._assert_item_access(existing_item['item_id'], current_user)
+
             # Check if parent issue is in DRAFT status
             issue = IssueRepository.get_by_id(existing_item['issue_id'])
             if issue and issue['status'] not in ['DRAFT']:
@@ -268,7 +335,7 @@ class IssueItemService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
         
     @staticmethod
-    def update_issue_item(issue_item_id: int, issue_item_data: IssueItemUpdate) -> IssueItemResponse:
+    def update_issue_item(issue_item_id: int, issue_item_data: IssueItemUpdate, current_user: dict) -> IssueItemResponse:
         try:
             if not isinstance(issue_item_id, int) or issue_item_id <= 0:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid issue item ID")
@@ -278,11 +345,14 @@ class IssueItemService:
             if not existing_item:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue item {issue_item_id} not found")
             
+            IssueItemService._assert_issue_access(existing_item['issue_id'], current_user)
+            IssueItemService._assert_item_access(existing_item['item_id'], current_user)
+
             # Check if parent issue is in DRAFT status
             issue = IssueRepository.get_by_id(existing_item['issue_id'])
             if issue and issue['status'] not in ['DRAFT']:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot update items from approved or issued issues")
-            
+
             updated_item = IssueItemRepository.update(issue_item_id, issue_item_data)
             if not updated_item:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update issue item")

@@ -19,6 +19,7 @@ import {
     FormInput,
     FormSelect,
 } from './UI';
+import { IssueStatisticsCards, type IssueStatisticsData } from './IssueStatisticsCards';
 
 interface Issue {
     id: number;
@@ -48,16 +49,6 @@ interface User {
     name: string;
 }
 
-interface Statistics {
-    total: number;
-    status_breakdown: {
-        draft: { count: number; percentage: number };
-        approved: { count: number; percentage: number };
-        issued: { count: number; percentage: number };
-        cancelled: { count: number; percentage: number };
-    };
-}
-
 interface IssueDetails {
     issue: Issue;
     items: IssueItem[];
@@ -67,10 +58,11 @@ function Dashboard() {
     const { user, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
     const [issues, setIssues] = useState<Issue[]>([]);
-    const [statistics, setStatistics] = useState<Statistics | null>(null);
+    const [statistics, setStatistics] = useState<IssueStatisticsData | null>(null);
     const [searchInput, setSearchInput] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
+    const [initialLoading, setInitialLoading] = useState(true);
+    const [issuesLoading, setIssuesLoading] = useState(false);
     const [statsLoading, setStatsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -95,12 +87,18 @@ function Dashboard() {
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
+    const isStaff = user?.role === 'STAFF';
 
     useEffect(() => {
         if (!authLoading && !user) {
             navigate('/login');
         }
     }, [authLoading, user, navigate]);
+
+    const canAccessIssue = useCallback((issue: Issue) => {
+        if (!isStaff) return true;
+        return issue.requested_by === user?.id;
+    }, [isStaff, user?.id]);
 
     const fetchUserData = useCallback(async (userId: number): Promise<User | null> => {
         if (!token) return null;
@@ -168,7 +166,7 @@ function Dashboard() {
 
     const fetchIssues = useCallback(async () => {
         if (!token) return;
-        setIsLoading(true);
+        setIssuesLoading(true);
         setError(null);
         try {
             const params = new URLSearchParams({
@@ -189,12 +187,19 @@ function Dashboard() {
         } catch (err) {
             setError((err as Error).message || 'Failed to load issues');
         } finally {
-            setIsLoading(false);
+            setIssuesLoading(false);
+            setInitialLoading(false);
         }
     }, [token, API_BASE_URL, currentPage, pageSize, debouncedSearch, filters.status]);
 
     const fetchIssueDetails = async (issueId: number) => {
         if (!token) return;
+        const targetIssue = issues.find((issue) => issue.id === issueId);
+        if (targetIssue && !canAccessIssue(targetIssue)) {
+            setError('You do not have permission to access this issue.');
+            return;
+        }
+
         try {
             const [issueRes, itemsRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/issues/${issueId}`, {
@@ -231,7 +236,8 @@ function Dashboard() {
                 throw new Error(err.detail || 'Failed to delete issue');
             }
             setSuccess('Issue deleted successfully');
-            fetchIssues();
+            await fetchIssues();
+            await fetchStatistics();
         } catch (err) {
             setError((err as Error).message || 'Failed to delete issue');
         }
@@ -239,8 +245,11 @@ function Dashboard() {
 
     useEffect(() => {
         fetchIssues();
+    }, [fetchIssues]);
+
+    useEffect(() => {
         fetchStatistics();
-    }, [fetchIssues, fetchStatistics]);
+    }, [fetchStatistics]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => {
@@ -267,6 +276,7 @@ function Dashboard() {
 
     const filteredIssues = useMemo(() => {
         return issues.filter((issue) => {
+            if (!canAccessIssue(issue)) return false;
             if (debouncedSearch && !issue.code.toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
             if (filters.requestedBy) {
                 const requestedName = issue.requested_by ? (userNameMap[issue.requested_by] || '') : '';
@@ -288,7 +298,7 @@ function Dashboard() {
             }
             return true;
         });
-    }, [issues, filters, userNameMap, debouncedSearch]);
+    }, [issues, filters, userNameMap, debouncedSearch, canAccessIssue]);
 
     const sortedIssues = useMemo(() => {
         const data = [...filteredIssues];
@@ -322,7 +332,7 @@ function Dashboard() {
         return sortConfig.direction === 'asc' ? '▲' : '▼';
     };
 
-    if (authLoading || isLoading) {
+    if (authLoading || initialLoading) {
         return (
             <div className="flex items-center justify-center py-12">
                 <Spinner size="lg" />
@@ -348,102 +358,8 @@ function Dashboard() {
                     </CardBody>
                 </Card>
 
-                {/* Statistics Section */}
-                {!statsLoading && statistics && (
-                    <div className="mb-6">
-                        <h4 className="text-2xl font-bold mb-4">Issues Statistics</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                            {/* Total */}
-                            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-                                <CardBody>
-                                    <div className="text-4xl mb-2">📊</div>
-                                    <p className="text-sm text-gray-600 mb-1">Total Issues</p>
-                                    <p className="text-3xl font-bold text-gray-900">{statistics.total}</p>
-                                </CardBody>
-                            </Card>
-
-                            {/* Draft */}
-                            <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
-                                <CardBody>
-                                    <div className="text-4xl mb-2">📝</div>
-                                    <p className="text-sm text-gray-600 mb-1">Draft</p>
-                                    <p className="text-3xl font-bold text-gray-900">{statistics.status_breakdown.draft.count}</p>
-                                    <div className="mt-2">
-                                        <div className="flex justify-between text-xs text-gray-600 mb-1">
-                                            <span>{statistics.status_breakdown.draft.percentage}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-1">
-                                            <div
-                                                className="bg-yellow-500 h-1 rounded-full"
-                                                style={{ width: `${statistics.status_breakdown.draft.percentage}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </CardBody>
-                            </Card>
-
-                            {/* Approved */}
-                            <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200">
-                                <CardBody>
-                                    <div className="text-4xl mb-2">✅</div>
-                                    <p className="text-sm text-gray-600 mb-1">Approved</p>
-                                    <p className="text-3xl font-bold text-gray-900">{statistics.status_breakdown.approved.count}</p>
-                                    <div className="mt-2">
-                                        <div className="flex justify-between text-xs text-gray-600 mb-1">
-                                            <span>{statistics.status_breakdown.approved.percentage}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-1">
-                                            <div
-                                                className="bg-cyan-500 h-1 rounded-full"
-                                                style={{ width: `${statistics.status_breakdown.approved.percentage}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </CardBody>
-                            </Card>
-
-                            {/* Issued */}
-                            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-                                <CardBody>
-                                    <div className="text-4xl mb-2">📦</div>
-                                    <p className="text-sm text-gray-600 mb-1">Issued</p>
-                                    <p className="text-3xl font-bold text-gray-900">{statistics.status_breakdown.issued.count}</p>
-                                    <div className="mt-2">
-                                        <div className="flex justify-between text-xs text-gray-600 mb-1">
-                                            <span>{statistics.status_breakdown.issued.percentage}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-1">
-                                            <div
-                                                className="bg-green-500 h-1 rounded-full"
-                                                style={{ width: `${statistics.status_breakdown.issued.percentage}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </CardBody>
-                            </Card>
-
-                            {/* Cancelled */}
-                            <Card className="bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200">
-                                <CardBody>
-                                    <div className="text-4xl mb-2">❌</div>
-                                    <p className="text-sm text-gray-600 mb-1">Cancelled</p>
-                                    <p className="text-3xl font-bold text-gray-900">{statistics.status_breakdown.cancelled.count}</p>
-                                    <div className="mt-2">
-                                        <div className="flex justify-between text-xs text-gray-600 mb-1">
-                                            <span>{statistics.status_breakdown.cancelled.percentage}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-1">
-                                            <div
-                                                className="bg-gray-500 h-1 rounded-full"
-                                                style={{ width: `${statistics.status_breakdown.cancelled.percentage}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                </CardBody>
-                            </Card>
-                        </div>
-                    </div>
-                )}
+                {/* Issue Statistics Cards Size, change to sm/md/lg */}
+                <IssueStatisticsCards statistics={statistics} isLoading={statsLoading} scale="sm" />
 
                 {/* Issues Management Section */}
                 <Card>
@@ -526,8 +442,15 @@ function Dashboard() {
                             />
                         </div>
 
+                        {issuesLoading && (
+                            <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+                                <Spinner size="sm" />
+                                <span>Loading issues...</span>
+                            </div>
+                        )}
+
                         {/* Table */}
-                        {sortedIssues.length === 0 ? (
+                        {sortedIssues.length === 0 && !issuesLoading ? (
                             <div className="text-center text-gray-500 py-12">
                                 <Inbox className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                                 <p className="text-lg">No issues found</p>
@@ -590,7 +513,7 @@ function Dashboard() {
                                                             <Eye className="w-4 h-4 mr-1" />
                                                             View
                                                         </Button>
-                                                        {(user?.role === 'ADMIN' || user?.role === 'STAFF') && (
+                                                        {(user?.role === 'ADMIN' || (user?.role === 'STAFF' && canAccessIssue(issue))) && (
                                                             <>
                                                                 <Button
                                                                     variant="outline-primary"

@@ -18,6 +18,8 @@ interface User {
     id: number;
     name: string;
     email: string;
+    role: string;
+    active: number | boolean;
 }
 
 interface IssueFormState {
@@ -48,6 +50,19 @@ function IssueFormPage() {
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
+    const isStaff = user?.role === 'STAFF';
+    const administrator = users.find((u) => u.role === 'ADMIN' && Boolean(u.active));
+    const statusOptions = isStaff
+        ? [
+            { value: 'DRAFT', label: 'Draft' },
+            { value: 'ISSUED', label: 'Issued' },
+        ]
+        : [
+            { value: 'DRAFT', label: 'Draft' },
+            { value: 'APPROVED', label: 'Approved' },
+            { value: 'ISSUED', label: 'Issued' },
+            { value: 'CANCELLED', label: 'Cancelled' },
+        ];
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -74,6 +89,16 @@ function IssueFormPage() {
 
         loadUsers();
     }, [API_BASE_URL, token]);
+
+    useEffect(() => {
+        if (!isStaff || isEdit || !user?.id) return;
+        setForm((prev) => ({
+            ...prev,
+            status: prev.status === 'ISSUED' ? 'ISSUED' : 'DRAFT',
+            requested_by: String(user.id),
+            approved_by: administrator ? String(administrator.id) : '',
+        }));
+    }, [isStaff, isEdit, user?.id, administrator?.id]);
 
     useEffect(() => {
         if (!isEdit || !token) return;
@@ -122,7 +147,14 @@ function IssueFormPage() {
         setIsLoading(true);
         setError(null);
 
-        const payload = {
+        const payload: {
+            code: string;
+            status: string;
+            requested_by?: number | null;
+            approved_by?: number | null;
+            issued_at: string | null;
+            note: string | null;
+        } = {
             code: form.code.trim(),
             status: form.status,
             requested_by: form.requested_by ? Number(form.requested_by) : null,
@@ -130,6 +162,23 @@ function IssueFormPage() {
             issued_at: form.issued_at ? new Date(form.issued_at).toISOString() : null,
             note: form.note.trim() || null,
         };
+
+        if (isStaff) {
+            if (!administrator) {
+                setError('Administrator user not found. Please contact admin.');
+                setIsLoading(false);
+                return;
+            }
+            payload.status = payload.status === 'ISSUED' ? 'ISSUED' : 'DRAFT';
+            payload.requested_by = user?.id ?? null;
+            payload.approved_by = administrator.id;
+
+            // For edit flow, backend should not receive these ownership fields from STAFF.
+            if (isEdit) {
+                delete payload.requested_by;
+                delete payload.approved_by;
+            }
+        }
 
         try {
             const response = await fetch(
@@ -212,42 +261,61 @@ function IssueFormPage() {
                                         onChange={(e) => handleChange('status', e.target.value)}
                                         required
                                     >
-                                        <option value="DRAFT">Draft</option>
-                                        <option value="APPROVED">Approved</option>
-                                        <option value="ISSUED">Issued</option>
-                                        <option value="CANCELLED">Cancelled</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="form-label">Requested By</label>
-                                    <select
-                                        className="form-select"
-                                        value={form.requested_by}
-                                        onChange={(e) => handleChange('requested_by', e.target.value)}
-                                    >
-                                        <option value="">Select user</option>
-                                        {users.map((u) => (
-                                            <option key={u.id} value={u.id}>
-                                                {u.name}
+                                        {statusOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="form-label">Approved By</label>
-                                    <select
-                                        className="form-select"
-                                        value={form.approved_by}
-                                        onChange={(e) => handleChange('approved_by', e.target.value)}
-                                    >
-                                        <option value="">Select user</option>
-                                        {users.map((u) => (
-                                            <option key={u.id} value={u.id}>
-                                                {u.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                {isStaff ? (
+                                    <FormInput
+                                        label="Requested By"
+                                        value={user?.name || '-'}
+                                        onChange={(_e) => {}}
+                                        disabled
+                                    />
+                                ) : (
+                                    <div>
+                                        <label className="form-label">Requested By</label>
+                                        <select
+                                            className="form-select"
+                                            value={form.requested_by}
+                                            onChange={(e) => handleChange('requested_by', e.target.value)}
+                                        >
+                                            <option value="">Select user</option>
+                                            {users.map((u) => (
+                                                <option key={u.id} value={u.id}>
+                                                    {u.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                                {isStaff ? (
+                                    <FormInput
+                                        label="Approved By"
+                                        value={administrator?.name || 'Administrator not found'}
+                                        onChange={(_e) => {}}
+                                        disabled
+                                    />
+                                ) : (
+                                    <div>
+                                        <label className="form-label">Approved By</label>
+                                        <select
+                                            className="form-select"
+                                            value={form.approved_by}
+                                            onChange={(e) => handleChange('approved_by', e.target.value)}
+                                        >
+                                            <option value="">Select user</option>
+                                            {users.map((u) => (
+                                                <option key={u.id} value={u.id}>
+                                                    {u.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                                 <FormInput
                                     label="Issued At"
                                     type="date"

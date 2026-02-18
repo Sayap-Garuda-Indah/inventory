@@ -38,6 +38,7 @@ interface IssueOption {
     id: number;
     code: string;
     status: string;
+    requested_by?: number;
 }
 
 interface IssueSelectOption {
@@ -86,6 +87,7 @@ function ItemFormPage() {
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const token = localStorage.getItem('authToken');
+    const isStaff = user?.role === 'STAFF';
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -98,7 +100,7 @@ function ItemFormPage() {
 
         const loadMetadata = async () => {
             try {
-                const [categoriesRes, unitsRes, usersRes, issuesRes] = await Promise.all([
+                const [categoriesRes, unitsRes, issuesRes] = await Promise.all([
                     fetch(`${API_BASE_URL}/categories?page=1&page_size=100`, {
                         headers: {
                             'Authorization': `Bearer ${token}`,
@@ -106,12 +108,6 @@ function ItemFormPage() {
                         },
                     }),
                     fetch(`${API_BASE_URL}/units?page=1&page_size=100`, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json',
-                        },
-                    }),
-                    fetch(`${API_BASE_URL}/users?page=1&page_size=100&active_only=1`, {
                         headers: {
                             'Authorization': `Bearer ${token}`,
                             'Content-Type': 'application/json',
@@ -133,14 +129,35 @@ function ItemFormPage() {
                     const unitsData = await unitsRes.json();
                     setUnits(unitsData.units || []);
                 }
-                if (usersRes.ok) {
-                    const usersData = await usersRes.json();
-                    setUsers(usersData.users || []);
-                }
                 if (issuesRes.ok) {
                     const issuesData = await issuesRes.json();
-                    const nextIssues = Array.isArray(issuesData) ? issuesData : (issuesData.issues || []);
-                    setIssues(nextIssues);
+                    const nextIssues: IssueOption[] = Array.isArray(issuesData)
+                        ? issuesData
+                        : (issuesData.issues || []);
+                    const scopedIssues = isStaff && user?.id
+                        ? nextIssues.filter((issue) => issue.requested_by === user.id)
+                        : nextIssues;
+                    setIssues(scopedIssues);
+                }
+
+                if (isStaff && user?.id && user.email) {
+                    setUsers([{ id: user.id, name: user.name, email: user.email }]);
+                    setForm((prev) => (
+                        prev.owner_user_id === String(user.id)
+                            ? prev
+                            : { ...prev, owner_user_id: String(user.id) }
+                    ));
+                } else {
+                    const usersRes = await fetch(`${API_BASE_URL}/users?page=1&page_size=100&active_only=1`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    });
+                    if (usersRes.ok) {
+                        const usersData = await usersRes.json();
+                        setUsers(usersData.users || []);
+                    }
                 }
             } catch (err) {
                 console.error('Error loading metadata:', err);
@@ -148,7 +165,16 @@ function ItemFormPage() {
         };
 
         loadMetadata();
-    }, [API_BASE_URL, token]);
+    }, [API_BASE_URL, token, isStaff, user?.id, user?.name, user?.email]);
+
+    useEffect(() => {
+        if (!isStaff || !user?.id) return;
+        setForm((prev) => (
+            prev.owner_user_id === String(user.id)
+                ? prev
+                : { ...prev, owner_user_id: String(user.id) }
+        ));
+    }, [isStaff, user?.id]);
 
     useEffect(() => {
         if (!isEdit || !token) return;
@@ -217,7 +243,7 @@ function ItemFormPage() {
             name: form.name.trim(),
             category_id: Number(form.category_id),
             unit_id: Number(form.unit_id),
-            owner_user_id: form.owner_user_id ? Number(form.owner_user_id) : null,
+            owner_user_id: isStaff ? (user?.id ?? null) : (form.owner_user_id ? Number(form.owner_user_id) : null),
             qrcode: form.qrcode.trim() || null,
             description: form.description.trim() || null,
             min_stock: Number(form.min_stock || 0),
@@ -246,6 +272,11 @@ function ItemFormPage() {
             const savedItem = await response.json();
 
             if (issueId) {
+                const selectedIssue = issues.find((issue) => String(issue.id) === issueId);
+                if (isStaff && selectedIssue && selectedIssue.requested_by !== user?.id) {
+                    throw new Error('STAFF can only attach items to their own issues');
+                }
+
                 const issueResponse = await fetch(`${API_BASE_URL}/issue-items`, {
                     method: 'POST',
                     headers: {
@@ -370,12 +401,21 @@ function ItemFormPage() {
                                     onChange={(e) => handleChange('unit_id', e.target.value)}
                                     required
                                 />
-                                <FormSelect
-                                    label="Owner"
-                                    options={ownerOptions}
-                                    value={form.owner_user_id}
-                                    onChange={(e) => handleChange('owner_user_id', e.target.value)}
-                                />
+                                {isStaff ? (
+                                    <FormInput
+                                        label="Owner"
+                                        value={user?.name || '-'}
+                                        onChange={(_e) => {}}
+                                        disabled
+                                    />
+                                ) : (
+                                    <FormSelect
+                                        label="Owner"
+                                        options={ownerOptions}
+                                        value={form.owner_user_id}
+                                        onChange={(e) => handleChange('owner_user_id', e.target.value)}
+                                    />
+                                )}
                                 <FormInput
                                     label="QR Code"
                                     value={form.qrcode}

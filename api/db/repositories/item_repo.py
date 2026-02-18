@@ -11,7 +11,8 @@ class ItemRepository:
         active_only: bool = True,
         limit: int = 50,
         offset: int = 0,
-        search: Optional[str] = None
+        search: Optional[str] = None,
+        owner_user_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
         Get all items with optional filters.
@@ -35,6 +36,10 @@ class ItemRepository:
                     if search_condition:
                         conditions.append(search_condition)
                         params.extend(search_params)
+
+            if owner_user_id is not None:
+                conditions.append("owner_user_id = %s")
+                params.append(owner_user_id)
 
             where_clause, params = QueryBuilder.build_where_clause(conditions, params)
 
@@ -230,7 +235,11 @@ class ItemRepository:
             raise RuntimeError(str(e))
 
     @staticmethod
-    def count(active_only: bool = True, search: Optional[str] = None) -> int:
+    def count(
+        active_only: bool = True, 
+        search: Optional[str] = None,
+        owner_user_id: Optional[int] = None
+    ) -> int:
         """
         Count items with optional filters.
         """
@@ -241,6 +250,10 @@ class ItemRepository:
             if active_only:
                 conditions.append("active = %s")
                 params.append(True)
+                
+            if owner_user_id is not None:
+                conditions.append("owner_user_id = %s")
+                params.append(owner_user_id)
 
             search_term = DatabaseUtils.sanitize_search_term(search)
             search_condition, search_params = QueryBuilder.build_search_condition(search_term, ["item_code", "name"])

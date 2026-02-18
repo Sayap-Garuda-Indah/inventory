@@ -440,3 +440,21 @@ class UserRepository:
             return False
         except Exception as e:
             raise RuntimeError({str(e)})
+
+    @staticmethod
+    def get_first_active_admin() -> Optional[Dict[str, Any]]:
+        """
+        Get the first active admin user
+        """
+        try:
+            query = """
+                SELECT id, email, password_hash, name, role, active, created_at
+                FROM users
+                WHERE role = %s AND active = 1
+                ORDER BY id ASC
+                LIMIT 1
+                """
+            
+            return fetch_one(query, ("ADMIN",))
+        except Exception as e:
+            raise RuntimeError({str(e)})

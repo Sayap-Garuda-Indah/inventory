@@ -1,40 +1,96 @@
-from typing import Optional, List
+from typing import Optional, Dict, Any
 from fastapi import HTTPException, status
 # from api.db.repositories.item_repo import ItemRepository
 from db.pool import fetch_one
 from db.repositories.user_repo import UserRepository
 from db.repositories.issue_repo import IssueRepository
+from schemas.users import UserRole
 from schemas.issues import IssueCreate, IssueUpdate, IssueResponse, IssueListResponse
 from core.logging import get_logger
 
 logger = get_logger(__name__)
 
 class IssueService:
+    STAFF_ALLOWED_STATUS = {"DRAFT", "ISSUED"}
+
+    @staticmethod
+    def _is_staff(current_user: Dict[str, Any]) -> bool:
+        return str(current_user.get("role", "")).upper() == UserRole.STAFF.value
+    
+    @staticmethod
+    def _ensure_issue_owner_for_staff(
+            issue_data: Dict[str, Any],
+            current_user: Optional[Dict[str, Any]]
+    ) -> None:
+        if not current_user:
+            return
+        if IssueService._is_staff(current_user) and issue_data.get("requested_by") != current_user.get("id"):
+            logger.warning(
+                "Access denied for staff user trying to access issue not owned by them.",
+                extra={
+                    "issue_id": issue_data.get("id"),
+                    "issue_requested_by": issue_data.get("requested_by"),
+                    "current_user_id": current_user.get("id")
+                }
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Staff users can only access issues they have created"
+            )
+
+    @staticmethod
+    def _get_default_admin_user_id() -> int:
+        admin_user = UserRepository.get_first_active_admin()
+        if not admin_user:
+            logger.error("No active admin user found in the system.")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="No active admin user found"
+            )
+        
+        return int(admin_user["id"])
+
     @staticmethod
     def get_all_issues(
         page: int = 1,
         page_size: int = 50,
         search: Optional[str] = None,
-        status_filter: Optional[str] = None
+        status_filter: Optional[str] = None,
+        current_user: Dict[str, Any] | None = None
     ) -> IssueListResponse:
         try:
             if page < 1:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Page number must be at least 1")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail="Page number must be at least 1"
+                )
             if page_size < 1 or page_size > 100:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Page size must be between 1 and 100")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail="Page size must be between 1 and 100"
+                )
             
             offset = (page - 1) * page_size
+            owner_scope = None
+
+            if current_user and IssueService._is_staff(current_user):
+                owner_scope = current_user["id"]
 
             # Fetch issues with filters and pagination
             issue_data = IssueRepository.get_all(
                 limit=page_size,
                 offset=offset,
                 search=search,
-                status_filter=status_filter
+                status_filter=status_filter,
+                requested_by=owner_scope
             )
             
             # Get total count for pagination
-            total = IssueRepository.count_with_filter(search=search, status_filter=status_filter)
+            total = IssueRepository.count_with_filter(
+                search=search, 
+                status_filter=status_filter,
+                requested_by=owner_scope
+            )
 
             # Convert to response models
             issues = [IssueResponse(**issue) for issue in issue_data]
@@ -74,7 +130,7 @@ class IssueService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
         
     @staticmethod
-    def get_issue_by_id(issue_id: int) -> IssueResponse:
+    def get_issue_by_id(issue_id: int, current_user: Optional[Dict[str, Any]] = None) -> IssueResponse:
         """
         Get an issue by its ID.
         """
@@ -86,6 +142,8 @@ class IssueService:
             if not issue_data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue {issue_id} not found")
             
+            IssueService._ensure_issue_owner_for_staff(issue_data, current_user)
+
             return IssueResponse(**issue_data)
         except HTTPException:
             raise
@@ -94,7 +152,7 @@ class IssueService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
     
     @staticmethod
-    def get_issue_by_code(code: str) -> Optional[IssueResponse]:
+    def get_issue_by_code(code: str, current_user: Optional[Dict[str, Any]] = None) -> Optional[IssueResponse]:
         """
         Get an issue by its code.
         """
@@ -106,15 +164,22 @@ class IssueService:
             if not issue_data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue with code '{code}' not found")
             
+            IssueService._ensure_issue_owner_for_staff(issue_data, current_user)
             return IssueResponse(**issue_data)
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Failed to retrieve issue by code. ", extra={"error": str(e), "code": code})
+            logger.error(
+                f"Failed to retrieve issue by code. ", 
+                extra={
+                    "error": str(e), 
+                    "code": code
+                }
+            )
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
     @staticmethod
-    def create_issue(issue_data: IssueCreate, requested_by: int) -> IssueResponse:
+    def create_issue(issue_data: IssueCreate, current_user: Dict[str, Any]) -> IssueResponse:
         """
         Create a new issue.
         """
@@ -124,7 +189,7 @@ class IssueService:
                     "Issue creation failed - duplicate code.",
                     extra={
                         "code": issue_data.code,
-                        "requested_by": requested_by
+                        "requested_by": current_user["id"]
                     }
                 )
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Issue with code '{issue_data.code}' already exists")
@@ -137,7 +202,7 @@ class IssueService:
                         extra={
                             "requested_by": issue_data.requested_by,
                             "issue_code": issue_data.code,
-                            "creator_id": requested_by
+                            "creator_id": current_user["id"]
                         }
                     )
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Requested by user ID {issue_data.requested_by} does not exist")
@@ -149,23 +214,74 @@ class IssueService:
                         extra={
                             "approved_by": issue_data.approved_by,
                             "issue_code": issue_data.code,
-                            "creator_id": requested_by
+                            "creator_id": current_user["id"]
                         }
                     )
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Approved by user ID {issue_data.approved_by} does not exist")
                 
-            new_issue = IssueRepository.create(issue_data)
+            payload = issue_data.model_dump()
+            payload["status"] = str(payload["status"]).upper()
+
+            if IssueService._is_staff(current_user):
+                if payload["status"] not in IssueService.STAFF_ALLOWED_STATUS:
+                    logger.warning(
+                        "Issue creation failed - staff user trying to create issue with disallowed status.",
+                        extra={
+                            "issue_code": issue_data.code,
+                            "attempted_status": payload["status"],
+                            "creator_id": current_user["id"]
+                        }
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST, 
+                        detail=f"Staff users can only create issues with status in {IssueService.STAFF_ALLOWED_STATUS}"
+                    )
+                payload["requested_by"] = current_user["id"]
+                payload["approved_by"] = IssueService._get_default_admin_user_id()
+            
+            if payload.get("requested_by") and not UserRepository.exists_by_id(payload["requested_by"]):
+                logger.warning(
+                    "Issue creation failed - invalid requested_by user ID.",
+                    extra={
+                        "requested_by": payload["requested_by"],
+                        "issue_code": issue_data.code,
+                        "creator_id": current_user["id"]
+                    }
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail=f"Requested by user ID {payload['requested_by']} does not exist"
+                )
+            
+            if payload.get("approved_by") and not UserRepository.exists_by_id(payload["approved_by"]):
+                logger.warning(
+                    "Issue creation failed - invalid approved_by user ID.",
+                    extra={
+                        "approved_by": payload["approved_by"],
+                        "issue_code": issue_data.code,
+                        "creator_id": current_user["id"]
+                    }
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail=f"Approved by user ID {payload['approved_by']} does not exist"
+                )
+
+            new_issue = IssueRepository.create(IssueCreate(**payload))
             if not new_issue:
                 logger.warning(
                     "Issue creation failed - repository error.",
                     extra={
                         "issue_code": issue_data.code,
-                        "creator_id": requested_by
+                        "creator_id": current_user["id"]
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create issue")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                    detail="Failed to create issue"
+                )
 
-            logger.info("Issue created successfully", extra={"issue_id": new_issue["id"], "issue_code": new_issue["id"]})
+            logger.info("Issue created successfully", extra={"issue_id": new_issue["id"], "issue_code": new_issue["code"]})
             
             return IssueResponse(**new_issue)
         except HTTPException:
@@ -181,7 +297,7 @@ class IssueService:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
         
     @staticmethod
-    def update_issue(issue_id: int, issue_data: IssueUpdate) -> IssueResponse:
+    def update_issue(issue_id: int, issue_data: IssueUpdate, current_user: Dict[str, Any]) -> IssueResponse:
         """
         Update an existing issue.
         """
@@ -191,7 +307,8 @@ class IssueService:
                     "Issue update failed - invalid issue ID.",
                     extra={
                         "issue_id": issue_id,
-                        "updated_fields": issue_data.model_dump(exclude_unset=True)
+                        "updated_fields": issue_data.model_dump(exclude_unset=True),
+                        "updater_id": current_user["id"]
                     }
                 )
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid issue ID")
@@ -208,6 +325,20 @@ class IssueService:
                 )
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue {issue_id} not found")
             
+            if not existing_issue:
+                logger.warning(
+                    "Issue update failed - issue not found.",
+                    extra={
+                        "issue_id": issue_id,
+                        "updated_fields": issue_data.model_dump(exclude_unset=True),
+                        "updater_id": current_user["id"]
+                    }
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, 
+                    detail=f"Issue {issue_id} not found"
+                )
+
             # Check for code conflict if code is being updated
             if issue_data.code and issue_data.code != existing_issue["code"]:
                 if IssueRepository.exists_by_code(issue_data.code):
@@ -243,10 +374,114 @@ class IssueService:
                     )
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Approved by user ID {issue_data.approved_by} does not exist")
 
-            updated_issue = IssueRepository.update(issue_id, issue_data)
-            if not updated_issue:
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Issue {issue_id} not found")
+            IssueService._ensure_issue_owner_for_staff(existing_issue, current_user)
+
+            update_payload = issue_data.model_dump(exclude_unset=True)
+
+            if "status" in update_payload and update_payload["status"] is not None:
+                update_payload["status"] = str(update_payload["status"]).upper()
+
+            if IssueService._is_staff(current_user):
+                requested_by_payload = update_payload.get("requested_by")
+                approved_by_payload = update_payload.get("approved_by")
+
+                # Allow unchanged values from form payload, but block ownership/approval reassignment.
+                if (
+                    requested_by_payload is not None
+                    and requested_by_payload != existing_issue.get("requested_by")
+                ) or (
+                    approved_by_payload is not None
+                    and approved_by_payload != existing_issue.get("approved_by")
+                ):
+                    logger.warning(
+                        "Issue update failed - staff user trying to change requested_by or approved_by.",
+                        extra={
+                            "issue_id": issue_id,
+                            "requested_by_payload": requested_by_payload,
+                            "approved_by_payload": approved_by_payload,
+                            "requested_by_existing": existing_issue.get("requested_by"),
+                            "approved_by_existing": existing_issue.get("approved_by"),
+                            "updater_id": current_user["id"],
+                        },
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Staff users cannot change requested_by or approved_by fields",
+                    )
+
+                # Drop these fields for staff to prevent accidental update attempts.
+                update_payload.pop("requested_by", None)
+                update_payload.pop("approved_by", None)
+
+                if "status" in update_payload and update_payload["status"] not in IssueService.STAFF_ALLOWED_STATUS:
+                    logger.warning(
+                        "Issue update failed - staff user trying to update issue to disallowed status.",
+                        extra={
+                            "issue_id": issue_id,
+                            "attempted_status": update_payload["status"],
+                            "updater_id": current_user["id"]
+                        }
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST, 
+                        detail=f"Staff users can only set status to values in {IssueService.STAFF_ALLOWED_STATUS}"
+                    )
+
+            new_code = update_payload.get("code")
+            if new_code and new_code != existing_issue["code"] and IssueRepository.exists_by_code(new_code):
+                logger.warning(
+                    "Issue update failed - duplicate code.",
+                    extra={
+                        "issue_id": issue_id,
+                        "new_code": new_code
+                    }
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail=f"Issue with code '{new_code}' already exists"
+                )
             
+            if update_payload.get("requested_by") is not None and not UserRepository.exists_by_id(update_payload["requested_by"]):
+                logger.warning(
+                    "Issue update failed - invalid requested_by user ID.",
+                    extra={
+                        "issue_id": issue_id,
+                        "requested_by": update_payload["requested_by"]
+                    }
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail=f"Requested by user ID {update_payload['requested_by']} does not exist"
+                )
+            
+            if update_payload.get("approved_by") is not None and not UserRepository.exists_by_id(update_payload["approved_by"]):
+                logger.warning(
+                    "Issue update failed - invalid approved_by user ID.",
+                    extra={
+                        "issue_id": issue_id,
+                        "approved_by": update_payload["approved_by"]
+                    }
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail=f"Approved by user ID {update_payload['approved_by']} does not exist"
+                )
+            
+            updated_issue = IssueRepository.update(issue_id, IssueUpdate(**update_payload))
+            if not updated_issue:
+                logger.error(
+                    "Issue update failed - repository error.",
+                    extra={
+                        "issue_id": issue_id,
+                        "updated_fields": update_payload,
+                        "updater_id": current_user["id"]
+                    }
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                    detail=f"Failed to update issue {issue_id}"
+                )
+
             logger.info(
                 f"Issue updated successfully", 
                 extra={
@@ -268,10 +503,13 @@ class IssueService:
                     "issue_id": issue_id
                 }
             )
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="Internal server error"
+            )
         
     @staticmethod
-    def delete_issue(issue_id: int) -> Optional[dict]:
+    def delete_issue(issue_id: int, current_user: Dict[str, Any]) -> Optional[dict]:
         """
         Soft delete an issue by its ID.
         """
@@ -283,7 +521,10 @@ class IssueService:
                         "issue_id": issue_id,
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid issue ID")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail="Invalid issue ID"
+                )
             
             existing_issue = IssueRepository.get_by_id(issue_id)
             if not existing_issue:
@@ -293,8 +534,13 @@ class IssueService:
                         "issue_id": issue_id,
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue {issue_id} not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, 
+                    detail=f"Issue {issue_id} not found"
+                )
             
+            IssueService._ensure_issue_owner_for_staff(existing_issue, current_user)
+
             issue_items = fetch_one(
                 "SELECT COUNT(*) AS count FROM issue_items WHERE issue_id = %s",
                 (issue_id,),
@@ -309,7 +555,10 @@ class IssueService:
                         "issue_id": issue_id,
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to delete issue {issue_id}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                    detail=f"Failed to delete issue {issue_id}"
+                )
 
             logger.info(
                 "Issue soft-deleted successfully.",
@@ -344,10 +593,17 @@ class IssueService:
                     "issue_id": issue_id
                 }
             )
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="Internal server error"
+            )
         
     @staticmethod
-    def approve_issue(issue_id: int, approver_id: int) -> IssueResponse:
+    def approve_issue(
+        issue_id: int, 
+        approver_id: int,
+        current_user: Dict[str, Any]
+    ) -> IssueResponse:
         """
         Approve an issue by its ID.
         """
@@ -360,7 +616,10 @@ class IssueService:
                         "approver_id": approver_id
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid issue ID")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail="Invalid issue ID"
+                )
             
             existing_issue = IssueRepository.get_by_id(issue_id)
             if not existing_issue:
@@ -371,7 +630,12 @@ class IssueService:
                         "approver_id": approver_id
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue {issue_id} not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, 
+                    detail=f"Issue {issue_id} not found"
+                )
+            
+            IssueService._ensure_issue_owner_for_staff(existing_issue, current_user)
             
             # Check if issue is in DRAFT status
             if existing_issue["status"] != "DRAFT":
@@ -383,7 +647,10 @@ class IssueService:
                         "approver_id": approver_id
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Issue {issue_id} is not in DRAFT status and cannot be approved")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail=f"Issue {issue_id} is not in DRAFT status and cannot be approved"
+                )
             
             # Validate approver
             if not UserRepository.exists_by_id(approver_id):
@@ -394,7 +661,10 @@ class IssueService:
                         "approver_id": approver_id
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Approver user ID {approver_id} does not exist")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail=f"Approver user ID {approver_id} does not exist"
+                )
             
             approved_issue = IssueRepository.approve_issue(issue_id, approver_id)
             if not approved_issue:
@@ -405,7 +675,10 @@ class IssueService:
                         "approver_id": approver_id
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to approve issue {issue_id}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                    detail=f"Failed to approve issue {issue_id}"
+                )
             
             logger.info("Issue approved successfully", extra={"issue_id": issue_id, "approver_id": approver_id})
 
@@ -420,10 +693,13 @@ class IssueService:
                     "issue_id": issue_id
                 }
             )
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="Internal server error"
+            )
 
     @staticmethod
-    def change_issue_status(issue_id: int, new_status: str) -> IssueResponse:
+    def change_issue_status(issue_id: int, new_status: str, current_user: Dict[str, Any]) -> IssueResponse:
         """
         Change the status of an issue.
         """
@@ -436,7 +712,10 @@ class IssueService:
                         "new_status": new_status
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid issue ID")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, 
+                    detail="Invalid issue ID"
+                )
             
             existing_issue = IssueRepository.get_by_id(issue_id)
             if not existing_issue:
@@ -447,9 +726,21 @@ class IssueService:
                         "new_status": new_status
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Issue {issue_id} not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, 
+                    detail=f"Issue {issue_id} not found"
+                )
             
-            updated_issue = IssueRepository.change_status(issue_id, new_status)
+            IssueService._ensure_issue_owner_for_staff(existing_issue, current_user)
+            normalized_status = str(new_status).upper()
+
+            if IssueService._is_staff(current_user) and normalized_status not in IssueService.STAFF_ALLOWED_STATUS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Staff users can only set status to values in {IssueService.STAFF_ALLOWED_STATUS}"
+                )
+            
+            updated_issue = IssueRepository.change_status(issue_id, normalized_status)
             if not updated_issue:
                 logger.error(
                     "Failed to change issue status.",
@@ -458,7 +749,10 @@ class IssueService:
                         "new_status": new_status
                     }
                 )
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to change status for issue {issue_id}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                    detail=f"Failed to change status for issue {issue_id}"
+                )
             
             logger.info("Issue status changed successfully", extra={"issue_id": issue_id, "new_status": new_status})
 

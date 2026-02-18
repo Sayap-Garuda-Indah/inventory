@@ -40,7 +40,8 @@ def list_issue_items(
             issue_id=issue_id,
             item_id=item_id,
             page=page,
-            page_size=page_size
+            page_size=page_size,
+            current_user=current_user
         )
 
         return items_data
@@ -62,7 +63,7 @@ def get_items_by_issue(
             }
         )
 
-        items = IssueItemService.get_items_by_issue_id(issue_id=issue_id)
+        items = IssueItemService.get_items_by_issue_id(issue_id=issue_id, current_user=current_user)
 
         logger.info(
             "Items for issue retrieved",
@@ -92,7 +93,7 @@ def get_issue_item(
             }
         )
 
-        item = IssueItemService.get_issue_item_by_id(issue_item_id=issue_item_id)
+        item = IssueItemService.get_issue_item_by_id(issue_item_id=issue_item_id, current_user=current_user)
         if not item:
             logger.warning(
                 "Issue item not found",
@@ -130,7 +131,7 @@ def create_issue_item(
             }
         )
 
-        response = IssueItemService.create_issue_item(issue_item_data)
+        response = IssueItemService.create_issue_item(issue_item_data, current_user=current_user)
 
         logger.info(
             "Issue item created successfully",
@@ -172,7 +173,7 @@ def create_bulk_issue_items(
             }
         )
 
-        response = IssueItemService.create_bulk_issue_items(bulk_data)
+        response = IssueItemService.create_bulk_issue_items(bulk_data, current_user=current_user)
 
         logger.info(
             "Bulk issue items created successfully",
@@ -215,7 +216,7 @@ def update_issue_item(
             }
         )
 
-        response = IssueItemService.update_issue_item(issue_item_id, issue_item_data)
+        response = IssueItemService.update_issue_item(issue_item_id, issue_item_data, current_user=current_user)
 
         logger.info(
             "Issue item updated successfully",
@@ -255,7 +256,7 @@ def delete_issue_item(
             }
         )
 
-        result = IssueItemService.delete_issue_item(issue_item_id)
+        result = IssueItemService.delete_issue_item(issue_item_id, current_user=current_user)
 
         logger.info(
             "Issue item deleted successfully",
