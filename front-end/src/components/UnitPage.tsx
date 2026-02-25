@@ -332,7 +332,7 @@ function UnitPage() {
                                             >
                                                 Multiplier {getSortIndicator('multiplier')}
                                             </th>
-                                            <th className="w-56">Actions</th>
+                                            <th className="w-24 text-center">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -348,24 +348,28 @@ function UnitPage() {
                                                     <code className="text-gray-600 font-mono">{unit.symbol}</code>
                                                 </td>
                                                 <td>{unit.multiplier}</td>
-                                                <td>
+                                                <td className="text-center">
                                                     {currentUser?.role === 'ADMIN' && (
-                                                        <div className="flex gap-2">
+                                                        <div className="flex items-center justify-center gap-1">
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
+                                                                className="px-2"
+                                                                title="Edit unit"
+                                                                aria-label="Edit unit"
                                                                 onClick={() => handleOpenModal(unit)}
                                                             >
-                                                                <Pencil className="w-4 h-4 mr-1" />
-                                                                Edit
+                                                                <Pencil className="w-4 h-4" />
                                                             </Button>
                                                             <Button
                                                                 variant="outline-danger"
                                                                 size="sm"
+                                                                className="px-2"
+                                                                title="Delete unit"
+                                                                aria-label="Delete unit"
                                                                 onClick={() => handleDelete(unit.id)}
                                                             >
-                                                                <Trash2 className="w-4 h-4 mr-1" />
-                                                                Delete
+                                                                <Trash2 className="w-4 h-4" />
                                                             </Button>
                                                         </div>
                                                     )}

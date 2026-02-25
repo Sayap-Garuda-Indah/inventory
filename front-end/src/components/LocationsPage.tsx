@@ -322,7 +322,7 @@ function LocationsPage() {
                                             >
                                                 Status {getSortIndicator('active')}
                                             </th>
-                                            <th className="w-56 text-right text-xs uppercase tracking-wide text-gray-500">Actions</th>
+                                            <th className="w-24 text-center text-xs uppercase tracking-wide text-gray-500">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -342,24 +342,28 @@ function LocationsPage() {
                                                         {location.active ? 'Active' : 'Inactive'}
                                                     </Badge>
                                                 </td>
-                                                <td className="text-right">
+                                                <td className="text-center">
                                                     {currentUser?.role === 'ADMIN' && (
-                                                        <div className="flex gap-2 justify-end">
+                                                        <div className="flex gap-1 justify-center">
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
+                                                                className="px-2"
+                                                                title="Edit location"
+                                                                aria-label="Edit location"
                                                                 onClick={() => handleOpenModal(location)}
                                                             >
-                                                                <Pencil className="w-4 h-4 mr-1" />
-                                                                Edit
+                                                                <Pencil className="w-4 h-4" />
                                                             </Button>
                                                             <Button
                                                                 variant="outline-danger"
                                                                 size="sm"
+                                                                className="px-2"
+                                                                title="Delete location"
+                                                                aria-label="Delete location"
                                                                 onClick={() => handleDelete(location.id)}
                                                             >
-                                                                <Trash2 className="w-4 h-4 mr-1" />
-                                                                Delete
+                                                                <Trash2 className="w-4 h-4" />
                                                             </Button>
                                                         </div>
                                                     )}

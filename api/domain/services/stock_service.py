@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 from fastapi import HTTPException, status
 from db.pool import get_transaction_cursor
 from db.repositories.item_repo import ItemRepository
@@ -6,6 +6,8 @@ from db.repositories.locations_repo import LocationsRepository
 from db.repositories.stock_levels_repo import StockLevelsRepository
 from db.repositories.stock_tx_repo import StockTxRepository
 from db.repositories.settings_repo import SettingsRepository
+from db.repositories.user_repo import UserRepository
+from schemas.users import UserRole
 from schemas.stock_tx import StockTxCreate, StockTxUpdate, StockTxListResponse, StockTxResponse
 from schemas.stock_levels import StockLevelListResponse, StockLevelResponse
 from core.logging import get_logger
@@ -14,32 +16,103 @@ logger = get_logger(__name__)
 
 class StockService:
     @staticmethod
+    def _is_staff(current_user: Optional[Dict[str, Any]]) -> bool:
+        return bool(current_user) and str(current_user.get("role", "")).upper() == UserRole.STAFF.value
+
+    @staticmethod
+    def _owner_scope(current_user: Optional[Dict[str, Any]]) -> Optional[int]:
+        if StockService._is_staff(current_user):
+            return int(current_user["id"])
+        return None
+
+    @staticmethod
+    def _assert_staff_item_ownership(item_id: int, current_user: Optional[Dict[str, Any]]) -> None:
+        if not StockService._is_staff(current_user):
+            return
+
+        item = ItemRepository.get_by_id(item_id)
+        if not item:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+        if item.get("owner_user_id") != current_user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="STAFF can only access transactions for their own items",
+            )
+
+    @staticmethod
+    def _assert_transaction_access(existing_tx: Dict[str, Any], current_user: Optional[Dict[str, Any]]) -> None:
+        if not StockService._is_staff(current_user):
+            return
+        StockService._assert_staff_item_ownership(int(existing_tx["item_id"]), current_user)
+
+    @staticmethod
+    def _resolve_target_owner_user_id(
+        payload_user_id: Optional[int],
+        fallback_user_id: Optional[int],
+        current_user: Optional[Dict[str, Any]],
+    ) -> int:
+        selected_user_id = payload_user_id if payload_user_id is not None else fallback_user_id
+        if selected_user_id is None and current_user:
+            selected_user_id = current_user.get("id")
+        if not isinstance(selected_user_id, int) or selected_user_id <= 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid owner user ID")
+        return selected_user_id
+
+    @staticmethod
+    def _validate_target_owner_user(owner_user_id: int) -> None:
+        owner_user = UserRepository.get_by_id(owner_user_id)
+        if not owner_user:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Owner user not found")
+        if not owner_user.get("active", False):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Owner user is inactive")
+
+    @staticmethod
+    def _set_item_owner(cursor, item_id: int, owner_user_id: int) -> None:
+        cursor.execute(
+            """
+            UPDATE items
+            SET owner_user_id = %s
+            WHERE id = %s AND active = 1
+            """,
+            (owner_user_id, item_id),
+        )
+        if cursor.rowcount <= 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update item owner")
+
+    @staticmethod
     def list_transactions(
         page: int = 1,
         page_size: int = 50,
         item_id: Optional[int] = None,
         location_id: Optional[int] = None,
         tx_type: Optional[str] = None,
-        search: Optional[str] = None
+        search: Optional[str] = None,
+        current_user: Optional[Dict[str, Any]] = None,
     ) -> StockTxListResponse:
         if page < 1:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Page number must be at least 1")
         if page_size < 1 or page_size > 100:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Page size must be between 1 and 100")
 
+        if item_id is not None:
+            StockService._assert_staff_item_ownership(item_id, current_user)
+
+        owner_scope = StockService._owner_scope(current_user)
         txs = StockTxRepository.list_transactions(
             page=page,
             page_size=page_size,
             item_id=item_id,
             location_id=location_id,
             tx_type=tx_type,
-            search=search
+            search=search,
+            owner_user_id=owner_scope,
         )
         total = StockTxRepository.count_transactions(
             item_id=item_id,
             location_id=location_id,
             tx_type=tx_type,
-            search=search
+            search=search,
+            owner_user_id=owner_scope,
         )
         return StockTxListResponse(
             txs=[StockTxResponse(**tx) for tx in txs],
@@ -77,20 +150,28 @@ class StockService:
         )
 
     @staticmethod
-    def get_transaction(tx_id: int) -> StockTxResponse:
+    def get_transaction(tx_id: int, current_user: Optional[Dict[str, Any]] = None) -> StockTxResponse:
         tx = StockTxRepository.get_by_id(tx_id)
         if not tx:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+        StockService._assert_transaction_access(tx, current_user)
         return StockTxResponse(**tx)
 
     @staticmethod
-    def create_transaction(tx_data: StockTxCreate, user_id: int) -> StockTxResponse:
+    def create_transaction(tx_data: StockTxCreate, current_user: Dict[str, Any]) -> StockTxResponse:
         StockService._validate_tx_inputs(tx_data.item_id, tx_data.location_id, tx_data.tx_type, tx_data.qty)
 
         if not ItemRepository.exists_by_id(tx_data.item_id):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item not found")
         if not LocationsRepository.exists_by_id(tx_data.location_id):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Location not found")
+        StockService._assert_staff_item_ownership(tx_data.item_id, current_user)
+        owner_user_id = StockService._resolve_target_owner_user_id(
+            tx_data.user_id,
+            fallback_user_id=None,
+            current_user=current_user,
+        )
+        StockService._validate_target_owner_user(owner_user_id)
 
         allow_negative = StockService._allow_negative_stock()
 
@@ -102,6 +183,7 @@ class StockService:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient stock for transaction")
 
             StockService._upsert_stock_level(cursor, tx_data.item_id, tx_data.location_id, new_qty)
+            StockService._set_item_owner(cursor, tx_data.item_id, owner_user_id)
 
             cursor.execute(
                 """
@@ -115,7 +197,7 @@ class StockService:
                     tx_data.qty,
                     tx_data.ref,
                     tx_data.note,
-                    user_id,
+                    owner_user_id,
                 ),
             )
             tx_id = cursor.lastrowid
@@ -127,15 +209,21 @@ class StockService:
         return StockTxResponse(**created)
 
     @staticmethod
-    def update_transaction(tx_id: int, tx_data: StockTxUpdate) -> StockTxResponse:
+    def update_transaction(tx_id: int, tx_data: StockTxUpdate, current_user: Optional[Dict[str, Any]] = None) -> StockTxResponse:
         existing = StockTxRepository.get_by_id(tx_id)
         if not existing:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+        StockService._assert_transaction_access(existing, current_user)
 
         next_item_id = tx_data.item_id if tx_data.item_id is not None else existing["item_id"]
         next_location_id = tx_data.location_id if tx_data.location_id is not None else existing["location_id"]
         next_tx_type = tx_data.tx_type if tx_data.tx_type is not None else existing["tx_type"]
         next_qty = tx_data.qty if tx_data.qty is not None else float(existing["qty"])
+        next_owner_user_id = StockService._resolve_target_owner_user_id(
+            tx_data.user_id,
+            fallback_user_id=existing.get("user_id"),
+            current_user=current_user,
+        )
 
         StockService._validate_tx_inputs(next_item_id, next_location_id, next_tx_type, next_qty)
 
@@ -143,6 +231,8 @@ class StockService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item not found")
         if not LocationsRepository.exists_by_id(next_location_id):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Location not found")
+        StockService._assert_staff_item_ownership(int(next_item_id), current_user)
+        StockService._validate_target_owner_user(next_owner_user_id)
 
         allow_negative = StockService._allow_negative_stock()
 
@@ -164,11 +254,12 @@ class StockService:
                 float(next_qty),
                 allow_negative,
             )
+            StockService._set_item_owner(cursor, int(next_item_id), next_owner_user_id)
 
             cursor.execute(
                 """
                 UPDATE stock_tx
-                SET item_id = %s, location_id = %s, tx_type = %s, qty = %s, ref = %s, note = %s
+                SET item_id = %s, location_id = %s, tx_type = %s, qty = %s, ref = %s, note = %s, user_id = %s
                 WHERE id = %s
                 """,
                 (
@@ -178,6 +269,7 @@ class StockService:
                     next_qty,
                     tx_data.ref if tx_data.ref is not None else existing["ref"],
                     tx_data.note if tx_data.note is not None else existing["note"],
+                    next_owner_user_id,
                     tx_id,
                 ),
             )
@@ -189,10 +281,11 @@ class StockService:
         return StockTxResponse(**updated)
 
     @staticmethod
-    def delete_transaction(tx_id: int) -> dict:
+    def delete_transaction(tx_id: int, current_user: Optional[Dict[str, Any]] = None) -> dict:
         existing = StockTxRepository.get_by_id(tx_id)
         if not existing:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+        StockService._assert_transaction_access(existing, current_user)
 
         allow_negative = StockService._allow_negative_stock()
 

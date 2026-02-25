@@ -20,7 +20,7 @@
 ### Current Issues
 - [ ] Hardcoded credentials in `.env` file
 - [x] Missing input validation - direct dict usage in `app/routers/items.py`
-- [ ] CORS for internal network only
+- [x] CORS for internal network only
 
 ## 4. Configuration Management
 
@@ -135,11 +135,11 @@
 - [x] `TransactionFormPage.tsx`
 
 ## Phase 6: Polish & Cleanup (Ongoing)
-- [ ] Remove Bootstrap imports
-- [ ] Remove unused CSS files
-- [ ] Update `main.tsx` (remove Bootstrap CSS)
-- [ ] Optimize Tailwind bundle
-- [ ] Test all responsive breakpoints
+- [x] Remove Bootstrap imports
+- [x] Remove unused CSS files
+- [x] Update `main.tsx` (remove Bootstrap CSS)
+- [x] Optimize Tailwind bundle
+- [x] Test all responsive breakpoints
 - [ ] Cross-browser testing
 - [ ] Performance audit
 

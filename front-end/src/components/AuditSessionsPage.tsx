@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Eye, ScanLine } from 'lucide-react';
 import {
     Alert,
     Badge,
@@ -291,7 +292,7 @@ function AuditSessionsPage() {
                                             <th>Status</th>
                                             <th>Started</th>
                                             <th>Scanned / Expected</th>
-                                            <th className="text-right">Actions</th>
+                                            <th className="w-24 text-center">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -313,22 +314,28 @@ function AuditSessionsPage() {
                                                 <td className="text-sm">
                                                     {session.scanned_count} / {session.expected_count}
                                                 </td>
-                                                <td className="text-right">
-                                                    <div className="flex gap-2 justify-end">
+                                                <td className="text-center">
+                                                    <div className="flex gap-1 justify-center">
                                                         <Button
                                                             variant="outline-primary"
                                                             size="sm"
+                                                            className="px-2"
+                                                            title="View audit session"
+                                                            aria-label="View audit session"
                                                             onClick={() => navigate(`/audit/${session.id}`)}
                                                         >
-                                                            View
+                                                            <Eye className="w-4 h-4" />
                                                         </Button>
                                                         {session.status === 'OPEN' && (
                                                             <Button
                                                                 variant="primary"
                                                                 size="sm"
+                                                                className="px-2"
+                                                                title="Scan audit session"
+                                                                aria-label="Scan audit session"
                                                                 onClick={() => navigate(`/audit/${session.id}/scan`)}
                                                             >
-                                                                Scan
+                                                                <ScanLine className="w-4 h-4" />
                                                             </Button>
                                                         )}
                                                     </div>
