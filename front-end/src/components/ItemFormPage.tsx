@@ -403,14 +403,14 @@ function ItemFormPage() {
                                 />
                                 {isStaff ? (
                                     <FormInput
-                                        label="Owner"
+                                        label="Assigned to"
                                         value={user?.name || '-'}
-                                        onChange={(_e) => {}}
+                                        onChange={() => {}}
                                         disabled
                                     />
                                 ) : (
                                     <FormSelect
-                                        label="Owner"
+                                        label="Assigned to"
                                         options={ownerOptions}
                                         value={form.owner_user_id}
                                         onChange={(e) => handleChange('owner_user_id', e.target.value)}

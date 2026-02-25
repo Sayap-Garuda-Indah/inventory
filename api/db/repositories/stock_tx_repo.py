@@ -9,8 +9,31 @@ class StockTxRepository:
 
     @staticmethod
     def get_by_id(tx_id: int) -> Optional[Dict[str, Any]]:
+        return StockTxRepository.get_by_id_scoped(tx_id)
+
+    @staticmethod
+    def get_by_id_scoped(tx_id: int, owner_user_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         try:
             DatabaseUtils.validate_id(tx_id, "Transaction")
+            owner_clause = ""
+            params: List[Any] = [
+                StockTxRepository.DELETED_LOCATION_NAME_PATTERN,
+                StockTxRepository.DELETED_LOCATION_CODE_PATTERN,
+                tx_id,
+                f"{StockTxRepository.DELETED_NOTE_PREFIX}%",
+            ]
+
+            if owner_user_id is not None:
+                owner_clause = """
+                  AND EXISTS (
+                        SELECT 1
+                        FROM items io
+                        WHERE io.id = st.item_id
+                          AND io.owner_user_id = %s
+                  )
+                """
+                params.append(owner_user_id)
+
             query = """
                 SELECT
                     st.id,
@@ -24,11 +47,14 @@ class StockTxRepository:
                     st.ref,
                     st.note,
                     st.tx_at,
-                    st.user_id
+                    st.user_id,
+                    COALESCE(u.name, '-') AS owner_name
                 FROM stock_tx st
                 LEFT JOIN items i
                     ON st.item_id = i.id
                    AND i.active = 1
+                LEFT JOIN users u
+                    ON st.user_id = u.id
                 LEFT JOIN locations l
                     ON st.location_id = l.id
                    AND l.active = 1
@@ -36,16 +62,10 @@ class StockTxRepository:
                    AND l.code NOT LIKE %s
                 WHERE st.id = %s
                   AND (st.note IS NULL OR st.note NOT LIKE %s)
+                {owner_clause}
             """
-            return fetch_one(
-                query,
-                (
-                    StockTxRepository.DELETED_LOCATION_NAME_PATTERN,
-                    StockTxRepository.DELETED_LOCATION_CODE_PATTERN,
-                    tx_id,
-                    f"{StockTxRepository.DELETED_NOTE_PREFIX}%",
-                ),
-            )
+            query = query.format(owner_clause=owner_clause)
+            return fetch_one(query, tuple(params))
         except Exception as e:
             raise RuntimeError(str(e))
 
@@ -56,7 +76,8 @@ class StockTxRepository:
         item_id: Optional[int] = None,
         location_id: Optional[int] = None,
         tx_type: Optional[str] = None,
-        search: Optional[str] = None
+        search: Optional[str] = None,
+        owner_user_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         try:
             conditions = ["(st.note IS NULL OR st.note NOT LIKE %s)"]
@@ -71,6 +92,18 @@ class StockTxRepository:
             if tx_type:
                 conditions.append("st.tx_type = %s")
                 params.append(tx_type)
+            if owner_user_id is not None:
+                conditions.append(
+                    """
+                    EXISTS (
+                        SELECT 1
+                        FROM items io
+                        WHERE io.id = st.item_id
+                          AND io.owner_user_id = %s
+                    )
+                    """
+                )
+                params.append(owner_user_id)
 
             search_term = DatabaseUtils.sanitize_search_term(search)
             search_condition, search_params = QueryBuilder.build_search_condition(
@@ -97,11 +130,14 @@ class StockTxRepository:
                     st.note,
                     st.tx_at,
                     st.user_id,
+                    COALESCE(u.name, '-') AS owner_name,
                     sl.qty_on_hand
                 FROM stock_tx st
                 LEFT JOIN items i
                     ON st.item_id = i.id
                    AND i.active = 1
+                LEFT JOIN users u
+                    ON st.user_id = u.id
                 LEFT JOIN locations l
                     ON st.location_id = l.id
                    AND l.active = 1
@@ -128,7 +164,8 @@ class StockTxRepository:
         item_id: Optional[int] = None,
         location_id: Optional[int] = None,
         tx_type: Optional[str] = None,
-        search: Optional[str] = None
+        search: Optional[str] = None,
+        owner_user_id: Optional[int] = None
     ) -> int:
         try:
             conditions = ["(st.note IS NULL OR st.note NOT LIKE %s)"]
@@ -143,6 +180,18 @@ class StockTxRepository:
             if tx_type:
                 conditions.append("st.tx_type = %s")
                 params.append(tx_type)
+            if owner_user_id is not None:
+                conditions.append(
+                    """
+                    EXISTS (
+                        SELECT 1
+                        FROM items io
+                        WHERE io.id = st.item_id
+                          AND io.owner_user_id = %s
+                    )
+                    """
+                )
+                params.append(owner_user_id)
 
             search_term = DatabaseUtils.sanitize_search_term(search)
             search_condition, search_params = QueryBuilder.build_search_condition(
@@ -214,6 +263,9 @@ class StockTxRepository:
                 if field in tx_data:
                     set_clauses.append(f"{field} = %s")
                     params.append(tx_data[field])
+            if "user_id" in tx_data:
+                set_clauses.append("user_id = %s")
+                params.append(tx_data["user_id"])
 
             if not set_clauses:
                 raise RuntimeError("No fields to update")

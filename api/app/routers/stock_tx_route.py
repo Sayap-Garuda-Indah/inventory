@@ -28,7 +28,8 @@ def list_transactions(
             item_id=item_id,
             location_id=location_id,
             tx_type=tx_type,
-            search=search
+            search=search,
+            current_user=current_user,
         )
     except HTTPException:
         raise
@@ -42,7 +43,7 @@ def get_transaction(
     current_user=Depends(get_current_user)
 ) -> StockTxResponse:
     try:
-        return StockService.get_transaction(tx_id)
+        return StockService.get_transaction(tx_id, current_user=current_user)
     except HTTPException:
         raise
     except Exception as e:
@@ -79,7 +80,7 @@ def create_transaction(
     current_user=Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> StockTxResponse:
     try:
-        return StockService.create_transaction(tx_data, current_user["id"])
+        return StockService.create_transaction(tx_data, current_user=current_user)
     except HTTPException:
         raise
     except Exception as e:
@@ -93,7 +94,7 @@ def update_transaction(
     current_user=Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> StockTxResponse:
     try:
-        return StockService.update_transaction(tx_id, tx_data)
+        return StockService.update_transaction(tx_id, tx_data, current_user=current_user)
     except HTTPException:
         raise
     except Exception as e:
@@ -106,7 +107,7 @@ def delete_transaction(
     current_user=Depends(require_role(UserRole.ADMIN, UserRole.STAFF))
 ) -> dict:
     try:
-        return StockService.delete_transaction(tx_id)
+        return StockService.delete_transaction(tx_id, current_user=current_user)
     except HTTPException:
         raise
     except Exception as e:
