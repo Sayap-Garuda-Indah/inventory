@@ -322,7 +322,7 @@ function UsersPage() {
                                             >
                                                 Created At {getSortIndicator('created_at')}
                                             </th>
-                                            <th className="w-48">Actions</th>
+                                            <th className="w-24 text-center">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -350,24 +350,28 @@ function UsersPage() {
                                                 <td>
                                                     {new Date(user.created_at).toLocaleDateString()}
                                                 </td>
-                                                <td onClick={(e) => e.stopPropagation()}>
+                                                <td onClick={(e) => e.stopPropagation()} className="text-center">
                                                     {currentUser?.role === 'ADMIN' && (
-                                                        <div className="flex gap-2">
+                                                        <div className="flex items-center justify-center gap-1">
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
+                                                                className="px-2"
+                                                                title="Edit user"
+                                                                aria-label="Edit user"
                                                                 onClick={() => navigate(`/users/${user.id}/edit`)}
                                                             >
-                                                                <Pencil className="w-4 h-4 mr-1" />
-                                                                Edit
+                                                                <Pencil className="w-4 h-4" />
                                                             </Button>
                                                             <Button
                                                                 variant="outline-danger"
                                                                 size="sm"
+                                                                className="px-2"
+                                                                title="Delete user"
+                                                                aria-label="Delete user"
                                                                 onClick={() => handleDeleteUser(user.id)}
                                                             >
-                                                                <Trash2 className="w-4 h-4 mr-1" />
-                                                                Delete
+                                                                <Trash2 className="w-4 h-4" />
                                                             </Button>
                                                         </div>
                                                     )}

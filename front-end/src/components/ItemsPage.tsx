@@ -548,7 +548,7 @@ function ItemsPage() {
                                             <th className="text-xs uppercase tracking-wide text-gray-500">Description</th>
                                             <th className="text-center text-xs uppercase tracking-wide text-gray-500">Min Stock</th>
                                             <th className="text-center text-xs uppercase tracking-wide text-gray-500">Status</th>
-                                            <th className="w-56 text-right text-xs uppercase tracking-wide text-gray-500">Actions</th>
+                                            <th className="w-24 text-center text-xs uppercase tracking-wide text-gray-500">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -587,28 +587,30 @@ function ItemsPage() {
                                                         {item.active ? 'Active' : 'Inactive'}
                                                     </Badge>
                                                 </td>
-                                                <td onClick={(e) => e.stopPropagation()} className="text-right">
+                                                <td onClick={(e) => e.stopPropagation()} className="text-center">
                                                     {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
-                                                        <div className="flex gap-2 justify-end">
+                                                        <div className="flex gap-1 justify-center">
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
-                                                                className="text-xs"
+                                                                className="text-xs px-2"
+                                                                title="Edit item"
+                                                                aria-label="Edit item"
                                                                 onClick={() => navigate(`/items/${item.id}/edit`)}
                                                                 disabled={isStaff && item.owner_user_id !== currentUser?.id}
                                                             >
-                                                                <Pencil className="w-4 h-4 mr-1" />
-                                                                Edit
+                                                                <Pencil className="w-4 h-4" />
                                                             </Button>
                                                             {currentUser?.role === 'ADMIN' && (
                                                                 <Button
                                                                     variant="outline-danger"
                                                                     size="sm"
-                                                                    className="text-xs"
+                                                                    className="text-xs px-2"
+                                                                    title="Delete item"
+                                                                    aria-label="Delete item"
                                                                     onClick={() => handleDeleteItem(item.id)}
                                                                 >
-                                                                    <Trash2 className="w-4 h-4 mr-1" />
-                                                                    Delete
+                                                                    <Trash2 className="w-4 h-4" />
                                                                 </Button>
                                                             )}
                                                         </div>

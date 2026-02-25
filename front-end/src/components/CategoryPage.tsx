@@ -283,7 +283,7 @@ function CategoryPage() {
                                             >
                                                 Name {getSortIndicator('name')}
                                             </th>
-                                            <th className="w-48 text-right text-xs uppercase tracking-wide text-gray-500">Actions</th>
+                                            <th className="w-24 text-center text-xs uppercase tracking-wide text-gray-500">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -295,26 +295,28 @@ function CategoryPage() {
                                                     </code>
                                                 </td>
                                                 <td className="font-semibold">{category.name}</td>
-                                                <td className="text-right">
+                                                <td className="text-center">
                                                     {canManageCategories && (
-                                                        <div className="flex gap-2 justify-end">
+                                                        <div className="flex gap-1 justify-center">
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
-                                                                className="text-xs"
+                                                                className="text-xs px-2"
+                                                                title="Edit category"
+                                                                aria-label="Edit category"
                                                                 onClick={() => handleOpenModal(category)}
                                                             >
-                                                                <Pencil className="w-4 h-4 mr-1" />
-                                                                Edit
+                                                                <Pencil className="w-4 h-4" />
                                                             </Button>
                                                             <Button
                                                                 variant="outline-danger"
                                                                 size="sm"
-                                                                className="text-xs"
+                                                                className="text-xs px-2"
+                                                                title="Delete category"
+                                                                aria-label="Delete category"
                                                                 onClick={() => handleDelete(category.id)}
                                                             >
-                                                                <Trash2 className="w-4 h-4 mr-1" />
-                                                                Delete
+                                                                <Trash2 className="w-4 h-4" />
                                                             </Button>
                                                         </div>
                                                     )}
