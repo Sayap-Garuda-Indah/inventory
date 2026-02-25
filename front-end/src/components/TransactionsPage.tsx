@@ -29,6 +29,7 @@ interface Transaction {
     note?: string | null;
     tx_at: string;
     user_id: number;
+    owner_name?: string | null;
 }
 
 interface TransactionListResponse {
@@ -51,6 +52,7 @@ interface LocationOption {
 
 function TransactionsPage() {
     const { user: currentUser, isLoading: authLoading } = useAuth();
+    const isStaff = currentUser?.role === 'STAFF';
     const navigate = useNavigate();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [items, setItems] = useState<ItemOption[]>([]);
@@ -213,7 +215,7 @@ function TransactionsPage() {
 
     return (
         <div className="w-full h-full">
-            <div className="px-4 py-6 w-full">
+            <div className="px-4 py-6 max-w-7xl mx-auto">
                 <div className="flex justify-between items-start mb-6">
                     <div>
                         <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
@@ -221,6 +223,11 @@ function TransactionsPage() {
                             Stock Transactions
                         </h2>
                         <p className="text-gray-600 mt-1">Track stock movements and adjustments</p>
+                        {isStaff && (
+                            <p className="text-xs text-amber-700 mt-1">
+                                STAFF view is limited to transactions for items you own.
+                            </p>
+                        )}
                     </div>
                     {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
                         <Button variant="primary" onClick={() => navigate('/transactions/new')}>
@@ -273,6 +280,9 @@ function TransactionsPage() {
                                         </option>
                                     ))}
                                 </select>
+                                {isStaff && (
+                                    <p className="text-xs text-gray-500 mt-1">Showing your owned items only.</p>
+                                )}
                             </div>
                             <div>
                                 <label className="form-label">Location</label>
@@ -304,66 +314,96 @@ function TransactionsPage() {
                                 <p className="text-lg">No transactions found</p>
                             </div>
                         ) : (
-                            <div className="table-responsive">
-                                <table className="table table-compact">
+                            <div className="table-responsive max-w-full overflow-x-auto">
+                                <table className="table table-compact text-sm">
                                     <thead>
                                         <tr>
-                                            <th>Date</th>
-                                            <th>Item Code</th>
-                                            <th>Item Name</th>
-                                            <th>Location</th>
-                                            <th>Type</th>
-                                            <th>Qty</th>
-                                            <th>On Hand</th>
-                                            <th>Ref</th>
-                                            <th>Note</th>
-                                            <th className="w-48">Actions</th>
+                                            <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Date</th>
+                                            <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Item Code</th>
+                                            <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Item Name</th>
+                                            <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Location</th>
+                                            <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500 text-center">Type</th>
+                                            <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500 text-right">Qty</th>
+                                            <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500 text-right">On Hand</th>
+                                            <th className="hidden xl:table-cell whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Ref</th>
+                                            <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Assigned to</th>
+                                            <th className="hidden 2xl:table-cell whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Note</th>
+                                            <th className="w-24 whitespace-nowrap text-xs uppercase tracking-wide text-gray-500 text-center">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {transactions.map((tx) => (
                                             <tr key={tx.id}>
-                                                <td>{new Date(tx.tx_at).toLocaleString()}</td>
-                                                <td>
-                                                    <code className="text-blue-600 font-mono text-sm">
+                                                <td className="whitespace-nowrap text-xs">
+                                                    <div>{new Date(tx.tx_at).toLocaleDateString()}</div>
+                                                    <div className="text-gray-500">
+                                                        {new Date(tx.tx_at).toLocaleTimeString([], {
+                                                            hour: '2-digit',
+                                                            minute: '2-digit',
+                                                        })}
+                                                    </div>
+                                                </td>
+                                                <td className="whitespace-nowrap">
+                                                    <code className="text-blue-600 font-mono text-xs">
                                                         {tx.item_code || '-'}
                                                     </code>
                                                 </td>
-                                                <td>{tx.item_name || '-'}</td>
-                                                <td>{tx.location_name || '-'}</td>
-                                                <td>
+                                                <td className="max-w-[12rem]">
+                                                    <span className="block truncate" title={tx.item_name || '-'}>
+                                                        {tx.item_name || '-'}
+                                                    </span>
+                                                </td>
+                                                <td className="max-w-[10rem]">
+                                                    <span className="block truncate" title={tx.location_name || '-'}>
+                                                        {tx.location_name || '-'}
+                                                    </span>
+                                                </td>
+                                                <td className="text-center">
                                                     <Badge variant={getTxBadge(tx.tx_type)}>
                                                         {tx.tx_type}
                                                     </Badge>
                                                 </td>
-                                                <td>{Number(tx.qty).toFixed(1)}</td>
-                                                <td>
+                                                <td className="whitespace-nowrap text-right">{Number(tx.qty).toFixed(1)}</td>
+                                                <td className="whitespace-nowrap text-right">
                                                     {tx.qty_on_hand !== null && tx.qty_on_hand !== undefined
                                                         ? Number(tx.qty_on_hand).toFixed(1)
                                                         : '-'}
                                                 </td>
-                                                <td>{tx.ref || '-'}</td>
-                                                <td className="text-sm text-gray-600">
-                                                    <span className="block max-w-xs truncate">{tx.note || '-'}</span>
+                                                <td className="hidden xl:table-cell max-w-[8rem]">
+                                                    <span className="block truncate" title={tx.ref || '-'}>
+                                                        {tx.ref || '-'}
+                                                    </span>
                                                 </td>
-                                                <td>
+                                                <td className="max-w-[8rem]">
+                                                    <span className="block truncate" title={tx.owner_name || '-'}>
+                                                        {tx.owner_name || '-'}
+                                                    </span>
+                                                </td>
+                                                <td className="hidden 2xl:table-cell text-sm text-gray-600 max-w-[12rem]">
+                                                    <span className="block truncate" title={tx.note || '-'}>
+                                                        {tx.note || '-'}
+                                                    </span>
+                                                </td>
+                                                <td className="text-center">
                                                     {(currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF') && (
-                                                        <div className="flex gap-2">
+                                                        <div className="flex items-center justify-center gap-1">
                                                             <Button
                                                                 variant="outline-primary"
                                                                 size="sm"
+                                                                className="px-2"
+                                                                title="Edit transaction"
                                                                 onClick={() => navigate(`/transactions/${tx.id}/edit`)}
                                                             >
-                                                                <Pencil className="w-4 h-4 mr-1" />
-                                                                Edit
+                                                                <Pencil className="w-4 h-4" />
                                                             </Button>
                                                             <Button
                                                                 variant="outline-danger"
                                                                 size="sm"
+                                                                className="px-2"
+                                                                title="Delete transaction"
                                                                 onClick={() => handleDelete(tx.id)}
                                                             >
-                                                                <Trash2 className="w-4 h-4 mr-1" />
-                                                                Delete
+                                                                <Trash2 className="w-4 h-4" />
                                                             </Button>
                                                         </div>
                                                     )}

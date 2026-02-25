@@ -481,7 +481,7 @@ function Dashboard() {
                                                 Issued At {getSortIndicator('issued_at')}
                                             </th>
                                             <th>Note</th>
-                                            <th className="w-64">Actions</th>
+                                            <th className="w-28 text-center">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -503,34 +503,40 @@ function Dashboard() {
                                                     {issue.issued_at ? new Date(issue.issued_at).toLocaleDateString() : '-'}
                                                 </td>
                                                 <td className="text-sm max-w-xs truncate">{issue.note || '-'}</td>
-                                                <td onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex gap-2">
+                                                <td onClick={(e) => e.stopPropagation()} className="text-center">
+                                                    <div className="flex items-center justify-center gap-1">
                                                         <Button
                                                             variant="outline-secondary"
                                                             size="sm"
+                                                            className="px-2"
+                                                            title="View issue items"
+                                                            aria-label="View issue items"
                                                             onClick={() => navigate(`/issues/${issue.id}/items`)}
                                                         >
-                                                            <Eye className="w-4 h-4 mr-1" />
-                                                            View
+                                                            <Eye className="w-4 h-4" />
                                                         </Button>
                                                         {(user?.role === 'ADMIN' || (user?.role === 'STAFF' && canAccessIssue(issue))) && (
                                                             <>
                                                                 <Button
                                                                     variant="outline-primary"
                                                                     size="sm"
+                                                                    className="px-2"
+                                                                    title="Edit issue"
+                                                                    aria-label="Edit issue"
                                                                     onClick={() => navigate(`/issues/${issue.id}/edit`)}
                                                                 >
-                                                                    <Pencil className="w-4 h-4 mr-1" />
-                                                                    Edit
+                                                                    <Pencil className="w-4 h-4" />
                                                                 </Button>
                                                                 {user?.role === 'ADMIN' && (
                                                                     <Button
                                                                         variant="outline-danger"
                                                                         size="sm"
+                                                                        className="px-2"
+                                                                        title="Delete issue"
+                                                                        aria-label="Delete issue"
                                                                         onClick={() => handleDeleteIssue(issue.id)}
                                                                     >
-                                                                        <Trash2 className="w-4 h-4 mr-1" />
-                                                                        Delete
+                                                                        <Trash2 className="w-4 h-4" />
                                                                     </Button>
                                                                 )}
                                                             </>

@@ -7,6 +7,7 @@ class StockTxCreate(BaseModel):
     location_id: int = Field(..., description="Identifier for the location")
     tx_type: str = Field(..., description="Type of transaction (IN, OUT, ADJ, XFER)")
     qty: float = Field(..., description="Quantity of items in the transaction")
+    user_id: Optional[int] = Field(None, description="Owner user ID after transaction")
     ref: Optional[str] = Field(None, description="Reference for the transaction")
     note: Optional[str] = Field(None, description="Additional notes about the transaction")
 
@@ -15,6 +16,7 @@ class StockTxUpdate(BaseModel):
     location_id: Optional[int] = Field(None, description="Identifier for the location")
     tx_type: Optional[str] = Field(None, description="Type of transaction (IN, OUT, ADJ, XFER)")
     qty: Optional[float] = Field(None, description="Quantity of items in the transaction")
+    user_id: Optional[int] = Field(None, description="Owner user ID after transaction")
     ref: Optional[str] = Field(None, description="Reference for the transaction")
     note: Optional[str] = Field(None, description="Additional notes about the transaction")
 
@@ -30,7 +32,8 @@ class StockTxResponse(BaseModel):
     ref: Optional[str] = Field(None, description="Reference for the transaction")
     note: Optional[str] = Field(None, description="Additional notes about the transaction")
     tx_at: datetime.datetime = Field(..., description="Timestamp of the transaction")
-    user_id: int = Field(..., description="Identifier for the user who made the transaction")
+    user_id: int = Field(..., description="Identifier for the owner user after transaction")
+    owner_name: Optional[str] = Field(None, description="Owner name derived from user_id")
     qty_on_hand: Optional[float] = Field(None, description="Current quantity on hand after transaction")
 
 class StockTxListResponse(BaseModel):
