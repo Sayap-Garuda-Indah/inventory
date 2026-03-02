@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_EXPIRE_MINUTES: int = Field(default=1440)  # 1 day
 
+    # Bootstrap admin user
+    ADMIN_EMAIL: str = Field(default="")
+    ADMIN_USERNAME: str = Field(default="")
+    ADMIN_PASSWORD: str = Field(default="")
+
     # CORS
     CORS_ORIGINS: list[str] = Field(default_factory=list)
 

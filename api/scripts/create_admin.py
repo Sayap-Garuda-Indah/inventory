@@ -3,6 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.security.password import hash_password
+from core.config import settings
 from db.pool import init_pool, execute, fetch_one
 from datetime import datetime, timezone
 
@@ -16,7 +17,7 @@ def create_admin_user(email: str, password: str, name: str):
 
     if existing:
         print(f"User with email '{email}' already exists.")
-        return
+        return True
     
     query = """
     INSERT INTO users (email, password_hash, name, role, active, created_at)
@@ -39,6 +40,7 @@ def create_admin_user(email: str, password: str, name: str):
             else:
                 print("User created but could not retrieve user details.")
                 return False
+        return False
     except Exception as e:
         print(f"An error occurred while creating the admin user: {e}")
         return False
@@ -47,19 +49,33 @@ if __name__ == "__main__":
     print(f"Creating admin user...")
 
     admin_data = {
-        "email": "it.security@example.com",
-        "password": "adminpass",
-        "name": "Administrator",
+        "email": settings.ADMIN_EMAIL.strip(),
+        "password": settings.ADMIN_PASSWORD,
+        "name": settings.ADMIN_USERNAME.strip(),
     }
-    
-    print(f"Admin user: {admin_data['email']}")
-    print(f"Email: {admin_data['email']}")
+
+    env_var_map = {
+        "email": "ADMIN_EMAIL",
+        "password": "ADMIN_PASSWORD",
+        "name": "ADMIN_USERNAME",
+    }
+    missing_fields = [
+        env_var_map[field_name]
+        for field_name, value in admin_data.items()
+        if not value
+    ]
+    if missing_fields:
+        print("Missing required admin environment variables:")
+        for field in missing_fields:
+            print(f"  - {field}")
+        sys.exit(1)
+
+    print(f"Admin email: {admin_data['email']}")
+    print(f"Admin username: {admin_data['name']}")
 
     success = create_admin_user(**admin_data)
 
     if success:
         print("Admin user creation completed successfully.")
-        print(f"Email: {admin_data['email']}")
-        print(f"Password: {admin_data['password']}")
     
     sys.exit(0 if success else 1)
