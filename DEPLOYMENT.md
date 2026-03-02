@@ -43,6 +43,10 @@ JWT_EXPIRE_MINUTES=1440
 DEBUG=false
 LOG_LEVEL=INFO
 
+ADMIN_EMAIL=admin@example.com
+ADMIN_USERNAME=Administrator
+ADMIN_PASSWORD=change-me
+
 # Frontend uses the built-in Nginx reverse proxy
 VITE_API_BASE_URL=/api
 
@@ -108,13 +112,13 @@ Option B (per-device hosts file):
 
 ## 8) Initialize the ADMIN User
 
-1. Edit `api/scripts/create_admin.py` to set the desired email/password/name.
-2. Run the script once:
-   ```bash
-   docker compose exec api python scripts/create_admin.py
-   ```
+Admin user now dibuat otomatis saat container `api` start menggunakan variabel `ADMIN_EMAIL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` dari root `.env`.
 
-If the user already exists, the script exits with a non-zero code, so only run it on first setup.
+Untuk re-run manual bila diperlukan:
+
+```bash
+docker compose exec api python scripts/create_admin.py
+```
 
 ## 9) Verify
 

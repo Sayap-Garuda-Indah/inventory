@@ -38,6 +38,9 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       DEBUG: ${DEBUG}
       LOG_LEVEL: ${LOG_LEVEL}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     volumes:
       - api_uploads:/app/uploads
     depends_on:
