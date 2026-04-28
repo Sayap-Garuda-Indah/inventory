@@ -304,6 +304,13 @@ CREATE INDEX idx_audit_scans_item ON audit_scans(item_id);
 
 ---
 
+## Database migrations
+
+- SQL migrations live in `api/db/migrations/` (e.g. `0001_init.sql`).
+- Apply pending migrations: `cd api && python scripts/migrate.py upgrade`
+- In Docker deployments, migrations run automatically on API container start (`api/docker-entrypoint.sh`).
+- Legacy: `api/db/schema.sql` is kept as a baseline reference only.
+
 ## 8) API Design (current)
 
 - Auth: `POST /auth/login`, `GET /auth/me`

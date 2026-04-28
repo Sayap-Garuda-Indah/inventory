@@ -10,7 +10,6 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./api/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     networks:
       - backend
     healthcheck:
