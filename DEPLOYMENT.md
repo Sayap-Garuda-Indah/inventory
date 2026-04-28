@@ -61,7 +61,7 @@ EOF
 ```
 
 Notes:
-- The MySQL schema is loaded from `api/db/schema.sql` on first boot.
+- The MySQL schema is created/updated by the API migration runner (`api/scripts/migrate.py`) on container start.
 - Set strong passwords before production.
 - If Docker Desktop ignores the host binding, set `HOST_IP=0.0.0.0` and rely on Windows Firewall for access control.
 - For Docker Compose, only the root `.env` is required. Use `api/.env` and `front-end/.env` only for local (non-Docker) development.
