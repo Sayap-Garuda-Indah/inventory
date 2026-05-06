@@ -87,7 +87,7 @@ function AppRoutes() {
             <Route 
                 path="/users"
                 element={
-                    <PrivateRoute>
+                    <PrivateRoute allowedRoles={['ADMIN']}>
                         <UsersPage />
                     </PrivateRoute>
                 }
@@ -183,7 +183,7 @@ function AppRoutes() {
             <Route
                 path="/users/new"
                 element={
-                    <PrivateRoute>
+                    <PrivateRoute allowedRoles={['ADMIN']}>
                         <UserFormPage />
                     </PrivateRoute>
                 }
@@ -191,7 +191,7 @@ function AppRoutes() {
             <Route
                 path="/users/:userId/edit"
                 element={
-                    <PrivateRoute>
+                    <PrivateRoute allowedRoles={['ADMIN']}>
                         <UserFormPage />
                     </PrivateRoute>
                 }
