@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Alert, Button, Card, CardBody, FormInput, Spinner } from './UI';
 
@@ -82,10 +82,7 @@ function LoginPage() {
                         </form>
 
                         <p className="text-center mt-6 text-sm text-gray-500">
-                            Don't have an account?{' '}
-                            <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
-                                Register here
-                            </Link>
+                            Account access is managed by the administrator. Please contact your administrator if you need an account.
                         </p>
                     </CardBody>
                 </Card>

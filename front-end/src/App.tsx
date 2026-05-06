@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
-import RegisterPage from './components/RegisterPage';
 import Dashboard from './components/Dashboard';
 import IssueDetailsPage from './components/IssueDetailsPage';
 import Layout from './components/Layout';
@@ -57,14 +56,6 @@ function AppRoutes() {
                 element={
                     <PublicRoute>
                         <LoginPage />
-                    </PublicRoute>
-                }
-            />
-            <Route
-                path="/register"
-                element={
-                    <PublicRoute>
-                        <RegisterPage />
                     </PublicRoute>
                 }
             />
