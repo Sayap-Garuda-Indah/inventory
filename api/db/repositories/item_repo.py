@@ -178,10 +178,9 @@ class ItemRepository:
                 """
             rows_affected = execute(query, tuple(params))
 
-            if rows_affected > 0:
+            if rows_affected >= 0:
                 return ItemRepository.get_by_id(item_id)
-            else:
-                return None
+            return None
         except Exception as e:
             raise RuntimeError(str(e))
 

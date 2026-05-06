@@ -27,7 +27,7 @@ class IssueItemRepository:
 
             where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
-            query = """
+            query = f"""
                 SELECT
                     ii.id,
                     ii.issue_id,

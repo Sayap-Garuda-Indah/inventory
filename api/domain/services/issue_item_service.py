@@ -63,13 +63,15 @@ class IssueItemService:
         current_user: Dict[str, Any] | None = None
     ) -> IssueItemListResponse:
         try:
-            if current_user and IssueItemService._is_staff(current_user) and not issue_id:
+            if current_user and IssueItemService._is_staff(current_user) and not issue_id and not item_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Issue ID is required for staff users to filter issue items"
+                    detail="Issue ID or item ID is required for staff users to filter issue items"
                 )
             if issue_id and current_user:
                 IssueItemService._assert_issue_access(issue_id, current_user)
+            if item_id and current_user:
+                IssueItemService._assert_item_access(item_id, current_user)
 
             offset = (page - 1) * page_size
             issue_items_data = IssueItemRepository.get_all(issue_id=issue_id, item_id=item_id, limit=page_size, offset=offset)
