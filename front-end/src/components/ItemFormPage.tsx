@@ -46,6 +46,12 @@ interface IssueSelectOption {
     label: string;
 }
 
+interface IssueItemLink {
+    id: number;
+    issue_id: number;
+    item_id: number;
+}
+
 interface ItemFormState {
     item_code: string;
     name: string;
@@ -72,6 +78,8 @@ function ItemFormPage() {
     const [users, setUsers] = useState<UserOption[]>([]);
     const [issues, setIssues] = useState<IssueOption[]>([]);
     const [issueId, setIssueId] = useState('');
+    const [existingIssueId, setExistingIssueId] = useState('');
+    const [issueItemId, setIssueItemId] = useState<number | null>(null);
     const [form, setForm] = useState<ItemFormState>({
         item_code: '',
         name: '',
@@ -176,8 +184,32 @@ function ItemFormPage() {
         ));
     }, [isStaff, user?.id]);
 
+    const loadIssueLink = async (targetItemId: string) => {
+        if (!token) return;
+
+        const response = await fetch(`${API_BASE_URL}/issue-items?item_id=${targetItemId}&page=1&page_size=100`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || 'Failed to load item issue link');
+        }
+
+        const issueItemsData = await response.json();
+        const issueLinks: IssueItemLink[] = issueItemsData.issue_item || [];
+        const latestLink = issueLinks[0];
+
+        setIssueItemId(latestLink?.id ?? null);
+        setExistingIssueId(latestLink ? String(latestLink.issue_id) : '');
+        setIssueId(latestLink ? String(latestLink.issue_id) : '');
+    };
+
     useEffect(() => {
-        if (!isEdit || !token) return;
+        if (!isEdit || !token || !itemId) return;
 
         const loadItem = async () => {
             setIsLoading(true);
@@ -190,7 +222,8 @@ function ItemFormPage() {
                     },
                 });
                 if (!response.ok) {
-                    throw new Error('Failed to load item');
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Failed to load item');
                 }
                 const data = await response.json();
                 setForm({
@@ -205,6 +238,7 @@ function ItemFormPage() {
                     image_url: data.image_url || '',
                     active: Boolean(data.active),
                 });
+                await loadIssueLink(itemId);
             } catch (err) {
                 setError((err as Error).message || 'Failed to load item');
             } finally {
@@ -229,6 +263,50 @@ function ItemFormPage() {
 
     const handleChange = (field: keyof ItemFormState, value: string | boolean) => {
         setForm((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const syncIssueLink = async (savedItemId: number) => {
+        if (!token) return;
+
+        const selectedIssue = issueId ? issues.find((issue) => String(issue.id) === issueId) : undefined;
+        if (isStaff && selectedIssue && selectedIssue.requested_by !== user?.id) {
+            throw new Error('STAFF can only attach items to their own issues');
+        }
+
+        if (issueItemId && existingIssueId !== issueId) {
+            const deleteResponse = await fetch(`${API_BASE_URL}/issue-items/${issueItemId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!deleteResponse.ok) {
+                const err = await deleteResponse.json().catch(() => ({}));
+                throw new Error(err.detail || 'Failed to remove previous issue link');
+            }
+        }
+
+        if (issueId && (!issueItemId || existingIssueId !== issueId)) {
+            const issueResponse = await fetch(`${API_BASE_URL}/issue-items`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    issue_id: Number(issueId),
+                    item_id: savedItemId,
+                    qty: 1,
+                }),
+            });
+
+            if (!issueResponse.ok) {
+                const err = await issueResponse.json().catch(() => ({}));
+                throw new Error(err.detail || 'Item saved but failed to link issue');
+            }
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -271,30 +349,7 @@ function ItemFormPage() {
 
             const savedItem = await response.json();
 
-            if (issueId) {
-                const selectedIssue = issues.find((issue) => String(issue.id) === issueId);
-                if (isStaff && selectedIssue && selectedIssue.requested_by !== user?.id) {
-                    throw new Error('STAFF can only attach items to their own issues');
-                }
-
-                const issueResponse = await fetch(`${API_BASE_URL}/issue-items`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        issue_id: Number(issueId),
-                        item_id: savedItem.id,
-                        qty: 1,
-                    }),
-                });
-
-                if (!issueResponse.ok) {
-                    const err = await issueResponse.json();
-                    throw new Error(err.detail || 'Item saved but failed to link issue');
-                }
-            }
+            await syncIssueLink(savedItem.id);
 
             navigate('/items');
         } catch (err) {

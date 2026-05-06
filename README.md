@@ -333,4 +333,28 @@ CREATE INDEX idx_audit_scans_item ON audit_scans(item_id);
 
 ---
 
+Coding scheme:
+- Issue coding scheme
 
+
+- Item coding scheme:
+  ```
+  PREFIX-XXXX-XXXX
+  ```
+  - PREFIX: SGI / FI
+  - xxxx: sequence number, zero-padded to 4 digits (e.g., 0001, 0002, ...)
+  - XXXX: 2-4 letter code representing the item category.
+
+- Item category coding scheme:
+  ```
+  CAT-XXX
+  ```
+  - CAT: fixed prefix
+  - XXX: sequence number, zero-padded to 3 digits (e.g., 001, 002, ...)
+
+- Location coding scheme:
+  ```
+  LOC-XXX
+  ```
+  - LOC: fixed prefix
+  - XXX: sequence number, zero-padded to 3 digits (e.g., 001, 002, ...)
