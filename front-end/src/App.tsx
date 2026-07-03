@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
-import RegisterPage from './components/RegisterPage';
 import Dashboard from './components/Dashboard';
 import IssueDetailsPage from './components/IssueDetailsPage';
 import Layout from './components/Layout';
@@ -61,14 +60,6 @@ function AppRoutes() {
                 }
             />
             <Route
-                path="/register"
-                element={
-                    <PublicRoute>
-                        <RegisterPage />
-                    </PublicRoute>
-                }
-            />
-            <Route
                 path="/dashboard"
                 element={
                     <PrivateRoute>
@@ -87,7 +78,7 @@ function AppRoutes() {
             <Route 
                 path="/users"
                 element={
-                    <PrivateRoute>
+                    <PrivateRoute allowedRoles={['ADMIN']}>
                         <UsersPage />
                     </PrivateRoute>
                 }
@@ -183,7 +174,7 @@ function AppRoutes() {
             <Route
                 path="/users/new"
                 element={
-                    <PrivateRoute>
+                    <PrivateRoute allowedRoles={['ADMIN']}>
                         <UserFormPage />
                     </PrivateRoute>
                 }
@@ -191,7 +182,7 @@ function AppRoutes() {
             <Route
                 path="/users/:userId/edit"
                 element={
-                    <PrivateRoute>
+                    <PrivateRoute allowedRoles={['ADMIN']}>
                         <UserFormPage />
                     </PrivateRoute>
                 }

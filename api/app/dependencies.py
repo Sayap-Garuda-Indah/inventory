@@ -7,32 +7,37 @@ from core.logging import get_logger
 
 logger = get_logger(__name__)
 bearer = HTTPBearer(auto_error=False)
+AUTH_HEADERS = {"WWW-Authenticate": "Bearer"}
 
 def get_current_user(request: Request, credential: HTTPAuthorizationCredentials = Depends(bearer)):
     if not credential or not credential.credentials:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing token",
+            headers=AUTH_HEADERS,
+        )
 
-    # Upsert user into DB
     try:
         payload = verify_access_token(token=credential.credentials)
         user_id = payload.get('user_id')
 
         if not user_id:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, 
-                detail="Invalid token payload"
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload",
+                headers=AUTH_HEADERS,
             )
         
         user = UserRepository.get_by_id(user_id=user_id)
         if not user:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
 
         if not user['active']:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, 
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail="User inactive or not found"
             )
 
@@ -46,15 +51,34 @@ def get_current_user(request: Request, credential: HTTPAuthorizationCredentials 
 
         return result
     except ValueError as e:
+        logger.warning(
+            "Token verification failed",
+            extra={
+                "path": str(request.url.path),
+                "client_ip": getattr(request.client, 'host', 'unknown') if request.client else 'unknown',
+                "error": str(e),
+            }
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token verification error: {str(e)}"
+            detail="Invalid or expired token",
+            headers=AUTH_HEADERS,
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Authentication error: {str(e)}")
+        logger.error(
+            "Authentication error",
+            extra={
+                "path": str(request.url.path),
+                "client_ip": getattr(request.client, 'host', 'unknown') if request.client else 'unknown',
+                "error": str(e),
+            },
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Authentication failed: {str(e)}"
+            detail="Authentication failed"
         )
 
 def require_role(*roles):

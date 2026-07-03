@@ -8,8 +8,8 @@ from schemas.users import UserCreate, UserUpdate, UserResponse, UserListResponse
 logger = get_logger(__name__)
 router = APIRouter(prefix="/users", tags=["users"])
 
-@router.get("", response_model=UserListResponse)
-@router.get("/", response_model=UserListResponse, include_in_schema=False)
+@router.get("", response_model=UserListResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.get("/", response_model=UserListResponse, include_in_schema=False, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def list_users(
     active_only: int = Query(1, description="Filter to only active users if set to 1"),
     page: int = Query(1, ge=1, description="Page number for pagination"),
@@ -49,7 +49,7 @@ def list_users(
             detail=str(e)
         )
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
 def get_user(
     user_id: int = Path(..., description="The ID of the user to retrieve"),
     current_user = Depends(get_current_user)

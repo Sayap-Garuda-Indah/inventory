@@ -96,41 +96,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
     };
 
-    const register = async (email: string, password: string, name: string) => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/auth/register`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                    email, 
-                    password, 
-                    name,
-                    role: 'STAFF',
-                    active: 1 
-                }),
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Registration failed');
-            }
-
-            // Auto-login after registration
-            await login(email, password);
-        } catch (error) {
-            console.error('Registration failed:', error);
-            if (error instanceof TypeError || (error instanceof Error && error.message === 'Failed to fetch')) {
-                throw new Error(buildNetworkError());
-            }
-            if (error instanceof Error) {
-                throw error;
-            }
-            throw new Error('Registration failed. Please try again.');
-        }
-    };
-
     const logout = () => {
         localStorage.removeItem('authToken');
         setUser(null);
@@ -138,7 +103,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, login, register, logout, isLoading }}>
+        <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
             {children}
         </AuthContext.Provider>
     );

@@ -58,6 +58,12 @@ function UsersPage() {
     useEffect(() => {
         if (!authLoading && !currentUser) {
             navigate('/login');
+            return;
+        }
+
+        if (!authLoading && currentUser?.role !== 'ADMIN') {
+            navigate('/dashboard');
+            // return;
         }
     }, [authLoading, currentUser, navigate]);
 
