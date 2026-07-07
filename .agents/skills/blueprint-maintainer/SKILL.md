@@ -49,6 +49,11 @@ Use this skill when:
 - Keep security and deployment blockers visible.
 - Remove obsolete items only when the decision is documented elsewhere.
 
+## Checklist Update Rules
+
+- Check the list on `.agents/BLUEPRINT_UPDATE_CHECKLIST.md` for items that are now complete.
+- Add "Completed" on `.agents/docs/BLUEPRINT_IMPLEMENTATION_DETAILS.md` for any checklist item that is now complete.
+
 ## Style
 
 - Use English.
