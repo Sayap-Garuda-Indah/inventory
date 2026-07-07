@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft } from 'lucide-react';
 import Select from 'react-select';
+import { ITEM_CONDITION_OPTIONS, ITEM_STATUS_OPTIONS, type ItemCondition, type ItemStatus } from '../utils/itemState';
 import {
     Alert,
     Button,
@@ -63,6 +64,8 @@ interface ItemFormState {
     min_stock: string;
     image_url: string;
     active: boolean;
+    status: ItemStatus;
+    condition: ItemCondition;
 }
 
 function ItemFormPage() {
@@ -91,6 +94,8 @@ function ItemFormPage() {
         min_stock: '0',
         image_url: '',
         active: true,
+        status: 'AVAILABLE',
+        condition: 'GOOD',
     });
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -237,6 +242,8 @@ function ItemFormPage() {
                     min_stock: typeof data.min_stock === 'number' ? String(data.min_stock) : '0',
                     image_url: data.image_url || '',
                     active: Boolean(data.active),
+                    status: data.status || 'AVAILABLE',
+                    condition: data.condition || 'GOOD',
                 });
                 await loadIssueLink(itemId);
             } catch (err) {
@@ -327,6 +334,8 @@ function ItemFormPage() {
             min_stock: Number(form.min_stock || 0),
             image_url: form.image_url.trim() || null,
             active: form.active,
+            status: form.status,
+            condition: form.condition,
         };
 
         try {
@@ -475,6 +484,20 @@ function ItemFormPage() {
                                     label="QR Code"
                                     value={form.qrcode}
                                     onChange={(e) => handleChange('qrcode', e.target.value)}
+                                />
+                                <FormSelect
+                                    label="Operational Status"
+                                    options={ITEM_STATUS_OPTIONS}
+                                    value={form.status}
+                                    onChange={(e) => handleChange('status', e.target.value as ItemStatus)}
+                                    required
+                                />
+                                <FormSelect
+                                    label="Condition"
+                                    options={ITEM_CONDITION_OPTIONS}
+                                    value={form.condition}
+                                    onChange={(e) => handleChange('condition', e.target.value as ItemCondition)}
+                                    required
                                 />
                             </div>
 

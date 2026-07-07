@@ -47,7 +47,7 @@ class ItemRepository:
                 SELECT 
                     id, item_code, name, category_id, unit_id, 
                     owner_user_id, serial_number, min_stock, 
-                    description, image_url, active
+                    description, image_url, active, status, `condition`
                 FROM items
                 {where_clause}
                 ORDER BY name
@@ -70,7 +70,7 @@ class ItemRepository:
             query = """
                 SELECT 
                     id, item_code, serial_number, name, category_id, unit_id, 
-                    owner_user_id, min_stock, description, image_url, active
+                    owner_user_id, min_stock, description, image_url, active, status, `condition`
                 FROM items
                 WHERE id = %s
                 """
@@ -87,7 +87,7 @@ class ItemRepository:
             DatabaseUtils.validate_string(item_code, "item_code")
             
             query = """
-                SELECT id, item_code, name, category_id, unit_id, owner_user_id, serial_number, min_stock, description, image_url, active
+                SELECT id, item_code, name, category_id, unit_id, owner_user_id, serial_number, min_stock, description, image_url, active, status, `condition`
                 FROM items
                 WHERE item_code = %s
                 """
@@ -103,8 +103,12 @@ class ItemRepository:
         """
         try:
             query = """
-                INSERT INTO items (item_code, serial_number, name, category_id, unit_id, owner_user_id, min_stock, description, image_url, active)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO items (
+                    item_code, serial_number, name, category_id, unit_id,
+                    owner_user_id, min_stock, description, image_url, active,
+                    status, `condition`
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
             execute(query, (
                 item_data.item_code.strip().upper(),
@@ -117,6 +121,8 @@ class ItemRepository:
                 item_data.description,
                 item_data.image_url,
                 item_data.active,
+                item_data.status.value,
+                item_data.condition.value,
             ))
             
             return ItemRepository.get_by_item_code(item_data.item_code)
@@ -164,6 +170,12 @@ class ItemRepository:
             if item_data.active is not None:
                 set_clauses.append("active = %s")
                 params.append(item_data.active)
+            if item_data.status is not None:
+                set_clauses.append("status = %s")
+                params.append(item_data.status.value)
+            if item_data.condition is not None:
+                set_clauses.append("`condition` = %s")
+                params.append(item_data.condition.value)
 
             if not set_clauses:
                 raise ValueError("No fields to update")
@@ -313,7 +325,7 @@ class ItemRepository:
             query = """
                 SELECT 
                     id, item_code, serial_number, name, category_id, unit_id, 
-                    owner_user_id, min_stock, description, image_url, active
+                    owner_user_id, min_stock, description, image_url, active, status, `condition`
                 FROM items
                 WHERE serial_number = %s
                 """
