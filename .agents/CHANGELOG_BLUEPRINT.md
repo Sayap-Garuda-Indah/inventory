@@ -95,3 +95,31 @@ Verification:
 
 Follow-Up:
 - If staff identity lookup is needed later, create a separate minimal endpoint with limited fields.
+
+## 2026-07-07 - Token Storage Hardened Away From localStorage
+
+Type: Security | Frontend | Deployment | Documentation
+Branch: dev
+Related PR/Issue: #41
+
+Summary:
+- Changed frontend bearer-token persistence from `localStorage` to `sessionStorage`.
+- Added startup cleanup for legacy `localStorage` token values left by older frontend builds.
+- Added production Nginx CSP and browser security headers as compensating XSS controls.
+- Documented the short-term token-storage tradeoff and long-term `HttpOnly` cookie target.
+
+User Impact:
+- Users may need to sign in again when opening a new browser tab/session.
+- Token persistence is reduced, lowering exposure from long-lived browser storage.
+
+Technical Notes:
+- `sessionStorage` is still JavaScript-accessible and is not equivalent to `HttpOnly` cookies.
+- Full cookie-based auth will require backend session delivery, frontend request changes, and CSRF protection.
+
+Verification:
+- `rg -n "localStorage|sessionStorage|cacheLocation|Content-Security-Policy|X-Frame-Options|Referrer-Policy|Permissions-Policy" front-end/src front-end/nginx.conf README.md DEPLOYMENT.md .agents`
+- `cd front-end && npm run build`
+
+Follow-Up:
+- Implement secure `HttpOnly`, `Secure`, `SameSite` cookie-based auth with CSRF protection when the API/frontend auth contract is ready for a broader migration.
+- Run browser-level CSP smoke tests before marking production security headers fully complete.

@@ -41,7 +41,7 @@ This checklist tracks the remaining work needed to make SGI Inventory ready for 
 - [ ] Require non-empty, strong `JWT_SECRET_KEY` in production.
 - [ ] Add login rate limiting or lockout protection.
 - [ ] Standardize auth failure messages to avoid account-state leakage.
-- [ ] Decide whether JWT stays in `localStorage` temporarily or moves to secure `HttpOnly` cookies.
+- [x] Decide whether JWT stays in `localStorage` temporarily or moves to secure `HttpOnly` cookies.
 - [ ] Add production security headers intentionally and verify they do not break the app.
 - [ ] Review CORS configuration for exact deployment origins.
 - [ ] Confirm Docker network exposure only allows intended public services.

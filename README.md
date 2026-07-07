@@ -73,7 +73,7 @@ MySQL 8
 
 - Auth flow (high level)
   1. User logs in with email/password via POST /auth/login and receives a JWT.
-  2. Front-end stores token and sends Authorization: Bearer <token>.
+  2. Front-end keeps the token in `sessionStorage` for the current browser tab/session and sends `Authorization: Bearer <token>`.
   3. FastAPI validates JWT and enforces role checks per route.
 
 ---
@@ -83,6 +83,9 @@ MySQL 8
 - JWT access tokens signed by the API (HS256) with configurable expiry.
 - Roles: ADMIN, STAFF, AUDITOR; role checks applied on mutation endpoints.
 - Account state: inactive users cannot authenticate.
+- Token storage strategy: access tokens are no longer persisted in `localStorage`; the frontend uses `sessionStorage` and clears legacy `localStorage` token values on startup.
+- Security tradeoff: `sessionStorage` reduces persistence but remains readable by JavaScript, so the long-term target is secure `HttpOnly`, `Secure`, `SameSite` cookie-based auth with CSRF protection.
+- Production frontend hardening includes CSP, frame, content-type, referrer, and permissions headers in `front-end/nginx.conf`.
 
 ---
 
