@@ -1,21 +1,21 @@
 from typing import Optional
 from core.logging import get_logger
 from domain.services.user_service import UserService
-from app.dependencies import get_current_user, require_role
+from app.dependencies import require_role
 from fastapi import APIRouter, Depends, Query, Path, HTTPException, status
 from schemas.users import UserCreate, UserUpdate, UserResponse, UserListResponse, UserRole
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/users", tags=["users"])
 
-@router.get("", response_model=UserListResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
-@router.get("/", response_model=UserListResponse, include_in_schema=False, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.get("", response_model=UserListResponse)
+@router.get("/", response_model=UserListResponse, include_in_schema=False)
 def list_users(
     active_only: int = Query(1, description="Filter to only active users if set to 1"),
     page: int = Query(1, ge=1, description="Page number for pagination"),
     page_size: int = Query(10, ge=1, le=100, description="Number of users per page"),
     search: Optional[str] = Query(None, description="Search term to filter users by name or email"),
-    current_user=Depends(get_current_user)
+    current_user=Depends(require_role(UserRole.ADMIN))
 ) -> UserListResponse:
     """
     Retrieve a paginated list of users with optional filtering by active status and search term.
@@ -49,10 +49,10 @@ def list_users(
             detail=str(e)
         )
 
-@router.get("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_role(UserRole.ADMIN))])
+@router.get("/{user_id}", response_model=UserResponse)
 def get_user(
     user_id: int = Path(..., description="The ID of the user to retrieve"),
-    current_user = Depends(get_current_user)
+    current_user=Depends(require_role(UserRole.ADMIN))
 ) -> UserResponse:
     """
     Retrieve a single user by their ID.

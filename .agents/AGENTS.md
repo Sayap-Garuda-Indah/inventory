@@ -76,4 +76,5 @@ Primary roles are `ADMIN`, `STAFF`, and `AUDITOR`.
 
 - `BLUEPRINT_UPDATE_CHECKLIST.md` tracks readiness work.
 - `CHANGELOG_BLUEPRINT.md` records meaningful feature, security, data, deployment, and behavior changes.
+- `docs/ISSUE_IMPLEMENTATION_PROMPT_TEMPLATE.md` provides the reusable prompt for implementing one GitHub issue at a time.
 - `skills/blueprint-maintainer/SKILL.md` describes how an agent should maintain these files.

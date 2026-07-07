@@ -65,6 +65,8 @@ Notes:
 - Set strong passwords before production.
 - If Docker Desktop ignores the host binding, set `HOST_IP=0.0.0.0` and rely on Windows Firewall for access control.
 - For Docker Compose, only the root `.env` is required. Use `api/.env` and `front-end/.env` only for local (non-Docker) development.
+- Token storage is currently a short-term internal deployment tradeoff: the frontend uses `sessionStorage`, clears legacy `localStorage` token values on startup, and sends bearer tokens in API headers. The long-term target is `HttpOnly`, `Secure`, `SameSite` cookie-based auth with CSRF protection.
+- The production frontend Nginx config sends CSP and browser security headers from `front-end/nginx.conf`; verify browser console output after changing frontend dependencies or external asset usage.
 
 ## 4) Frontend Virtual Host (sgi-inventory.local)
 
@@ -119,6 +121,8 @@ Untuk re-run manual bila diperlukan:
 ```bash
 docker compose exec api python scripts/create_admin.py
 ```
+
+Public self-registration is not supported. After the initial admin account exists, create staff and auditor accounts from the protected Users page or the admin-only user-management API routes.
 
 ## 9) Verify
 

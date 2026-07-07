@@ -109,7 +109,7 @@ function ItemsPage() {
     const [sortConfig, setSortConfig] = useState<{ key: keyof Item; direction: 'asc' | 'desc' } | null>(null);
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-    const token = localStorage.getItem('authToken');
+    const token = sessionStorage.getItem('authToken');
     const isStaff = currentUser?.role === 'STAFF';
 
     useEffect(() => {

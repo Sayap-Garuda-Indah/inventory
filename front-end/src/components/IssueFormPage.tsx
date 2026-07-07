@@ -49,7 +49,7 @@ function IssueFormPage() {
     });
 
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-    const token = localStorage.getItem('authToken');
+    const token = sessionStorage.getItem('authToken');
     const isStaff = user?.role === 'STAFF';
     const administrator = users.find((u) => u.role === 'ADMIN' && Boolean(u.active));
     const statusOptions = isStaff

@@ -24,8 +24,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     
     useEffect(() => {
-        // Check for existing token on mount
-        const storedToken = localStorage.getItem('authToken');
+        // Clear bearer tokens left by older builds that persisted auth in localStorage.
+        localStorage.removeItem('authToken');
+
+        // Check for existing session-scoped token on mount.
+        const storedToken = sessionStorage.getItem('authToken');
         if (storedToken) {
             setToken(storedToken);
             fetchUserInfo(storedToken);
@@ -51,7 +54,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             setUser(data);
         } catch (error) {
             console.error('Failed to fetch user info:', error);
-            localStorage.removeItem('authToken');
+            sessionStorage.removeItem('authToken');
             setToken(null);
         } finally {
             setIsLoading(false);
@@ -80,7 +83,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             const data = await response.json();
             const accessToken = data.access_token;
 
-            localStorage.setItem('authToken', accessToken);
+            sessionStorage.setItem('authToken', accessToken);
             setToken(accessToken);
 
             await fetchUserInfo(accessToken);
@@ -97,7 +100,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     const logout = () => {
-        localStorage.removeItem('authToken');
+        sessionStorage.removeItem('authToken');
         setUser(null);
         setToken(null);
     };

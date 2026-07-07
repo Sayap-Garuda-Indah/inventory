@@ -51,7 +51,7 @@ Follow-Up:
 ## 2026-07-07 - Item Status And Condition Added
 
 Type: Feature | Data Model | Backend | Frontend
-Branch: agent/issues-36-38-status-auth
+
 Related PR/Issue: #36
 
 Summary:
@@ -65,10 +65,3 @@ User Impact:
 Technical Notes:
 - Added migration `0002_item_status_condition.sql` for existing databases and updated the baseline schema for fresh installs.
 - Defaults are `AVAILABLE` status and `GOOD` condition.
-
-Verification:
-- `cd api && $env:DEBUG='false'; ..\.venv\Scripts\python.exe -m pytest test\test_stock_service_authorization.py test\test_auth_dependencies.py`
-- `cd front-end && npm run build`
-
-Follow-Up:
-- Confirm whether status/condition changes need stricter role-specific authorization or reporting filters.
