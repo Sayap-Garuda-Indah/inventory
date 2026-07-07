@@ -8,6 +8,7 @@ from db.repositories.stock_tx_repo import StockTxRepository
 from db.repositories.settings_repo import SettingsRepository
 from db.repositories.user_repo import UserRepository
 from schemas.users import UserRole
+from schemas.items import ItemCondition, ItemStatus
 from schemas.stock_tx import StockTxCreate, StockTxUpdate, StockTxListResponse, StockTxResponse
 from schemas.stock_levels import StockLevelListResponse, StockLevelResponse
 from core.logging import get_logger
@@ -78,6 +79,60 @@ class StockService:
         )
         if cursor.rowcount <= 0:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update item owner")
+
+    @staticmethod
+    def _enum_value(value: Optional[ItemStatus | ItemCondition | str]) -> Optional[str]:
+        if value is None:
+            return None
+        if hasattr(value, "value"):
+            return str(value.value)
+        return str(value)
+
+    @staticmethod
+    def _get_item_state_for_update(cursor, item_id: int) -> Dict[str, Any]:
+        cursor.execute(
+            """
+            SELECT id, owner_user_id, status, `condition`, active
+            FROM items
+            WHERE id = %s AND active = 1
+            FOR UPDATE
+            """,
+            (item_id,),
+        )
+        item = cursor.fetchone()
+        if not item:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item not found")
+        return item
+
+    @staticmethod
+    def _set_item_owner_and_state(
+        cursor,
+        item_id: int,
+        owner_user_id: int,
+        item_status: Optional[str] = None,
+        item_condition: Optional[str] = None,
+    ) -> None:
+        set_clauses = ["owner_user_id = %s"]
+        params: list[Any] = [owner_user_id]
+
+        if item_status is not None:
+            set_clauses.append("status = %s")
+            params.append(item_status)
+        if item_condition is not None:
+            set_clauses.append("`condition` = %s")
+            params.append(item_condition)
+
+        params.append(item_id)
+        cursor.execute(
+            f"""
+            UPDATE items
+            SET {', '.join(set_clauses)}
+            WHERE id = %s AND active = 1
+            """,
+            tuple(params),
+        )
+        if cursor.rowcount <= 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update item owner/state")
 
     @staticmethod
     def list_transactions(
@@ -176,6 +231,12 @@ class StockService:
         allow_negative = StockService._allow_negative_stock()
 
         with get_transaction_cursor(dictionary=True) as cursor:
+            item_state_before = StockService._get_item_state_for_update(cursor, tx_data.item_id)
+            item_status_before = item_state_before["status"]
+            item_condition_before = item_state_before["condition"]
+            item_status_after = StockService._enum_value(tx_data.new_status) or item_status_before
+            item_condition_after = StockService._enum_value(tx_data.new_condition) or item_condition_before
+
             current_qty = StockService._get_qty_for_update(cursor, tx_data.item_id, tx_data.location_id)
             new_qty = StockService._apply_effect(current_qty, tx_data.tx_type, tx_data.qty)
 
@@ -183,12 +244,22 @@ class StockService:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient stock for transaction")
 
             StockService._upsert_stock_level(cursor, tx_data.item_id, tx_data.location_id, new_qty)
-            StockService._set_item_owner(cursor, tx_data.item_id, owner_user_id)
+            StockService._set_item_owner_and_state(
+                cursor,
+                tx_data.item_id,
+                owner_user_id,
+                item_status_after,
+                item_condition_after,
+            )
 
             cursor.execute(
                 """
-                INSERT INTO stock_tx (item_id, location_id, tx_type, qty, ref, note, user_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO stock_tx (
+                    item_id, location_id, tx_type, qty, ref, note, user_id,
+                    item_status_before, item_status_after,
+                    item_condition_before, item_condition_after
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     tx_data.item_id,
@@ -198,6 +269,10 @@ class StockService:
                     tx_data.ref,
                     tx_data.note,
                     owner_user_id,
+                    item_status_before,
+                    item_status_after,
+                    item_condition_before,
+                    item_condition_after,
                 ),
             )
             tx_id = cursor.lastrowid
@@ -254,12 +329,41 @@ class StockService:
                 float(next_qty),
                 allow_negative,
             )
-            StockService._set_item_owner(cursor, int(next_item_id), next_owner_user_id)
+            item_state_before = StockService._get_item_state_for_update(cursor, int(next_item_id))
+            item_status_before = item_state_before["status"]
+            item_condition_before = item_state_before["condition"]
+            next_status = StockService._enum_value(tx_data.new_status)
+            next_condition = StockService._enum_value(tx_data.new_condition)
+            item_changed = int(next_item_id) != int(existing["item_id"])
+            item_status_after = next_status or (
+                item_status_before if item_changed else existing.get("item_status_after")
+            ) or item_status_before
+            item_condition_after = next_condition or (
+                item_condition_before if item_changed else existing.get("item_condition_after")
+            ) or item_condition_before
+
+            StockService._set_item_owner_and_state(
+                cursor,
+                int(next_item_id),
+                next_owner_user_id,
+                next_status,
+                next_condition,
+            )
 
             cursor.execute(
                 """
                 UPDATE stock_tx
-                SET item_id = %s, location_id = %s, tx_type = %s, qty = %s, ref = %s, note = %s, user_id = %s
+                SET item_id = %s,
+                    location_id = %s,
+                    tx_type = %s,
+                    qty = %s,
+                    ref = %s,
+                    note = %s,
+                    user_id = %s,
+                    item_status_before = %s,
+                    item_status_after = %s,
+                    item_condition_before = %s,
+                    item_condition_after = %s
                 WHERE id = %s
                 """,
                 (
@@ -270,6 +374,10 @@ class StockService:
                     tx_data.ref if tx_data.ref is not None else existing["ref"],
                     tx_data.note if tx_data.note is not None else existing["note"],
                     next_owner_user_id,
+                    item_status_before,
+                    item_status_after,
+                    item_condition_before,
+                    item_condition_after,
                     tx_id,
                 ),
             )

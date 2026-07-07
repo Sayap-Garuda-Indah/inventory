@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+from schemas.items import ItemCondition, ItemStatus
 
 class AuditSessionCreate(BaseModel):
     location_id: int = Field(..., description="ID of the location where the session is created")
@@ -42,6 +43,10 @@ class AuditScanResponse(BaseModel):
     scanned_at: datetime = Field(..., description="Timestamp when the item was scanned")
     scanned_by: int = Field(..., description="User ID of the person who performed the scan")
     item_id: Optional[int] = Field(None, description="ID of the item if it exists in inventory")
+    item_code: Optional[str] = Field(None, description="Item code if the scanned item is known")
+    item_name: Optional[str] = Field(None, description="Item name if the scanned item is known")
+    item_status: Optional[ItemStatus] = Field(None, description="Current item status if the scanned item is known")
+    item_condition: Optional[ItemCondition] = Field(None, description="Current item condition if the scanned item is known")
     location_id: int = Field(..., description="ID of the location where the scan took place")
     result: str = Field(..., description="Result of the scan (e.g., 'FOUND', 'MISSING', 'UNEXPECTED', 'UNKNOWN')")
     note: Optional[str] = Field(None, description="Optional note for the scan")
@@ -57,6 +62,8 @@ class AuditItemSummary(BaseModel):
     item_code: str
     name: str
     active: bool
+    status: ItemStatus = ItemStatus.AVAILABLE
+    condition: ItemCondition = ItemCondition.GOOD
     qty_on_hand: Optional[float] = None
     note: Optional[str] = None
 

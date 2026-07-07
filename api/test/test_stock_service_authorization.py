@@ -121,6 +121,10 @@ def test_create_transaction_defaults_owner_to_authenticated_user_id_when_missing
         lambda item_id: {"id": item_id, "owner_user_id": STAFF_USER["id"], "active": 1},
     )
     monkeypatch.setattr("domain.services.stock_service.StockService._allow_negative_stock", lambda: True)
+    monkeypatch.setattr(
+        "domain.services.stock_service.StockService._get_item_state_for_update",
+        lambda cursor, item_id: {"id": item_id, "status": "AVAILABLE", "condition": "GOOD", "active": 1},
+    )
     monkeypatch.setattr("domain.services.stock_service.StockService._get_qty_for_update", lambda cursor, item_id, location_id: 0.0)
     monkeypatch.setattr("domain.services.stock_service.StockService._apply_effect", lambda current_qty, tx_type, qty: current_qty + qty)
     monkeypatch.setattr("domain.services.stock_service.StockService._upsert_stock_level", lambda cursor, item_id, location_id, qty_on_hand: None)
@@ -141,6 +145,10 @@ def test_create_transaction_defaults_owner_to_authenticated_user_id_when_missing
             "tx_at": "2026-01-01T00:00:00",
             "user_id": STAFF_USER["id"],
             "qty_on_hand": 0,
+            "item_status_before": "AVAILABLE",
+            "item_status_after": "AVAILABLE",
+            "item_condition_before": "GOOD",
+            "item_condition_after": "GOOD",
         },
     )
 
@@ -150,8 +158,8 @@ def test_create_transaction_defaults_owner_to_authenticated_user_id_when_missing
     )
 
     assert response.user_id == STAFF_USER["id"]
-    assert captured["insert_params"][-1] == STAFF_USER["id"]
-    assert captured["item_owner_update"] == (STAFF_USER["id"], 1)
+    assert captured["insert_params"][6] == STAFF_USER["id"]
+    assert captured["item_owner_update"] == (STAFF_USER["id"], "AVAILABLE", "GOOD", 1)
 
 
 def test_create_transaction_uses_payload_owner_user_id_and_updates_item_owner(monkeypatch):
@@ -186,6 +194,10 @@ def test_create_transaction_uses_payload_owner_user_id_and_updates_item_owner(mo
         lambda user_id: {"id": user_id, "name": "Target Owner", "active": True},
     )
     monkeypatch.setattr("domain.services.stock_service.StockService._allow_negative_stock", lambda: True)
+    monkeypatch.setattr(
+        "domain.services.stock_service.StockService._get_item_state_for_update",
+        lambda cursor, item_id: {"id": item_id, "status": "AVAILABLE", "condition": "GOOD", "active": 1},
+    )
     monkeypatch.setattr("domain.services.stock_service.StockService._get_qty_for_update", lambda cursor, item_id, location_id: 0.0)
     monkeypatch.setattr("domain.services.stock_service.StockService._apply_effect", lambda current_qty, tx_type, qty: current_qty + qty)
     monkeypatch.setattr("domain.services.stock_service.StockService._upsert_stock_level", lambda cursor, item_id, location_id, qty_on_hand: None)
@@ -207,6 +219,10 @@ def test_create_transaction_uses_payload_owner_user_id_and_updates_item_owner(mo
             "user_id": 77,
             "owner_name": "Target Owner",
             "qty_on_hand": 0,
+            "item_status_before": "AVAILABLE",
+            "item_status_after": "AVAILABLE",
+            "item_condition_before": "GOOD",
+            "item_condition_after": "GOOD",
         },
     )
 
@@ -216,8 +232,94 @@ def test_create_transaction_uses_payload_owner_user_id_and_updates_item_owner(mo
     )
 
     assert response.user_id == 77
-    assert captured["insert_params"][-1] == 77
-    assert captured["item_owner_update"] == (77, 1)
+    assert captured["insert_params"][6] == 77
+    assert captured["item_owner_update"] == (77, "AVAILABLE", "GOOD", 1)
+
+
+def test_create_transaction_records_item_status_and_condition_changes(monkeypatch):
+    captured = {"insert_params": None, "item_update": None}
+
+    class DummyCursor:
+        def __init__(self):
+            self.lastrowid = 125
+            self.rowcount = 1
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, query, params=None):
+            if "INSERT INTO stock_tx" in query:
+                captured["insert_params"] = params
+            if "UPDATE items" in query and "status" in query and "`condition`" in query:
+                captured["item_update"] = params
+                self.rowcount = 1
+
+    monkeypatch.setattr("domain.services.stock_service.ItemRepository.exists_by_id", lambda item_id: True)
+    monkeypatch.setattr("domain.services.stock_service.LocationsRepository.exists_by_id", lambda location_id: True)
+    monkeypatch.setattr(
+        "domain.services.stock_service.ItemRepository.get_by_id",
+        lambda item_id: {"id": item_id, "owner_user_id": STAFF_USER["id"], "active": 1},
+    )
+    monkeypatch.setattr(
+        "domain.services.stock_service.UserRepository.get_by_id",
+        lambda user_id: {"id": user_id, "name": "Any User", "active": True},
+    )
+    monkeypatch.setattr("domain.services.stock_service.StockService._allow_negative_stock", lambda: True)
+    monkeypatch.setattr(
+        "domain.services.stock_service.StockService._get_item_state_for_update",
+        lambda cursor, item_id: {"id": item_id, "status": "AVAILABLE", "condition": "GOOD", "active": 1},
+    )
+    monkeypatch.setattr("domain.services.stock_service.StockService._get_qty_for_update", lambda cursor, item_id, location_id: 0.0)
+    monkeypatch.setattr("domain.services.stock_service.StockService._apply_effect", lambda current_qty, tx_type, qty: current_qty + qty)
+    monkeypatch.setattr("domain.services.stock_service.StockService._upsert_stock_level", lambda cursor, item_id, location_id, qty_on_hand: None)
+    monkeypatch.setattr("domain.services.stock_service.get_transaction_cursor", lambda dictionary=True: DummyCursor())
+    monkeypatch.setattr(
+        "domain.services.stock_service.StockTxRepository.get_by_id",
+        lambda tx_id: {
+            "id": tx_id,
+            "item_id": 1,
+            "item_code": "ITM-001",
+            "item_name": "Owned Item",
+            "location_id": 1,
+            "location_name": "Main",
+            "tx_type": "IN",
+            "qty": 5,
+            "ref": None,
+            "note": None,
+            "tx_at": "2026-01-01T00:00:00",
+            "user_id": STAFF_USER["id"],
+            "owner_name": "Staff User",
+            "qty_on_hand": 0,
+            "item_status_before": "AVAILABLE",
+            "item_status_after": "MAINTENANCE",
+            "item_condition_before": "GOOD",
+            "item_condition_after": "FAIR",
+        },
+    )
+
+    response = StockService.create_transaction(
+        StockTxCreate(
+            item_id=1,
+            location_id=1,
+            tx_type="IN",
+            qty=5,
+            new_status="MAINTENANCE",
+            new_condition="FAIR",
+            ref=None,
+            note=None,
+        ),
+        current_user=STAFF_USER,
+    )
+
+    assert response.item_status_before.value == "AVAILABLE"
+    assert response.item_status_after.value == "MAINTENANCE"
+    assert response.item_condition_before.value == "GOOD"
+    assert response.item_condition_after.value == "FAIR"
+    assert captured["insert_params"][-4:] == ("AVAILABLE", "MAINTENANCE", "GOOD", "FAIR")
+    assert captured["item_update"] == (STAFF_USER["id"], "MAINTENANCE", "FAIR", 1)
 
 
 def test_update_transaction_staff_forbidden_when_target_item_is_foreign(monkeypatch):

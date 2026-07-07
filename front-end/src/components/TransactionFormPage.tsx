@@ -4,6 +4,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft } from 'lucide-react';
 import Select from 'react-select';
 import {
+    formatItemCondition,
+    formatItemStatus,
+    ITEM_CONDITION_OPTIONS,
+    ITEM_STATUS_OPTIONS,
+    type ItemCondition,
+    type ItemStatus,
+} from '../utils/itemState';
+import {
     Button,
     Card,
     CardHeader,
@@ -26,6 +34,8 @@ interface Item {
     id: number;
     item_code: string;
     name: string;
+    status?: ItemStatus;
+    condition?: ItemCondition;
 }
 
 interface ItemSelectOption {
@@ -50,6 +60,8 @@ interface TransactionDetailResponse {
     user_id: number;
     ref?: string | null;
     note?: string | null;
+    item_status_after?: ItemStatus | null;
+    item_condition_after?: ItemCondition | null;
 }
 
 interface TransactionFormState {
@@ -58,6 +70,8 @@ interface TransactionFormState {
     tx_type: string;
     qty: string;
     user_id: string;
+    new_status: '' | ItemStatus;
+    new_condition: '' | ItemCondition;
     ref: string;
     note: string;
 }
@@ -109,6 +123,8 @@ function TransactionFormPage() {
         tx_type: 'IN',
         qty: '',
         user_id: '',
+        new_status: '',
+        new_condition: '',
         ref: '',
         note: '',
     });
@@ -188,6 +204,8 @@ function TransactionFormPage() {
                         tx_type: txData.tx_type || 'IN',
                         qty: txData.qty !== undefined && txData.qty !== null ? String(txData.qty) : '',
                         user_id: txData.user_id ? String(txData.user_id) : '',
+                        new_status: txData.item_status_after || '',
+                        new_condition: txData.item_condition_after || '',
                         ref: txData.ref || '',
                         note: txData.note || '',
                     });
@@ -246,6 +264,8 @@ function TransactionFormPage() {
             tx_type: string;
             qty: number;
             user_id: number;
+            new_status: ItemStatus | null;
+            new_condition: ItemCondition | null;
             ref: string | null;
             note: string | null;
         } = {
@@ -254,6 +274,8 @@ function TransactionFormPage() {
             tx_type: form.tx_type,
             qty: Number(form.qty),
             user_id: Number(form.user_id),
+            new_status: form.new_status || null,
+            new_condition: form.new_condition || null,
             ref: form.ref.trim() || null,
             note: form.note.trim() || null,
         };
@@ -314,6 +336,18 @@ function TransactionFormPage() {
             label: owner.name,
         })),
     ];
+
+    const itemStateOptions = [
+        { value: '', label: 'No status change' },
+        ...ITEM_STATUS_OPTIONS,
+    ];
+
+    const itemConditionOptions = [
+        { value: '', label: 'No condition change' },
+        ...ITEM_CONDITION_OPTIONS,
+    ];
+
+    const selectedItem = items.find((item) => String(item.id) === form.item_id);
 
     return (
         <div className="w-full h-full">
@@ -397,6 +431,28 @@ function TransactionFormPage() {
                                     value={form.qty}
                                     onChange={(e) => handleChange('qty', e.target.value)}
                                     required
+                                />
+                                <FormSelect
+                                    label="New Item Status"
+                                    options={itemStateOptions}
+                                    value={form.new_status}
+                                    onChange={(e) => handleChange('new_status', e.target.value)}
+                                    helperText={
+                                        selectedItem
+                                            ? `Current: ${formatItemStatus(selectedItem.status)}`
+                                            : 'Optional status update after this transaction.'
+                                    }
+                                />
+                                <FormSelect
+                                    label="New Item Condition"
+                                    options={itemConditionOptions}
+                                    value={form.new_condition}
+                                    onChange={(e) => handleChange('new_condition', e.target.value)}
+                                    helperText={
+                                        selectedItem
+                                            ? `Current: ${formatItemCondition(selectedItem.condition)}`
+                                            : 'Optional condition update after this transaction.'
+                                    }
                                 />
                             </div>
                             <div className="grid grid-cols-1 gap-4">

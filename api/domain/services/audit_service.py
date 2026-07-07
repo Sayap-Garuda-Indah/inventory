@@ -275,6 +275,8 @@ class AuditService:
                         item_code=row['item_code'],
                         name=row['name'],
                         active=row['active'],
+                        status=row['status'],
+                        condition=row['condition'],
                         qty_on_hand=float(row['qty_on_hand']),
                         note=None
                     ))
@@ -287,6 +289,8 @@ class AuditService:
                     item_code=row['item_code'],
                     name=row['name'],
                     active=row['active'],
+                    status=row['status'],
+                    condition=row['condition'],
                     qty_on_hand=float(row['qty_on_hand']),
                     note=missing_notes.get(item_id)
                 ))
@@ -301,6 +305,8 @@ class AuditService:
                             item_code=item['item_code'],
                             name=item['name'],
                             active=item['active'],
+                            status=item['status'],
+                            condition=item['condition'],
                             qty_on_hand=None,
                             note=unexpected_notes.get(item_id)
                         ))

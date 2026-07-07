@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
+    formatItemCondition,
+    formatItemStatus,
+    getItemConditionBadge,
+    getItemStatusBadge,
+    type ItemCondition,
+    type ItemStatus,
+} from '../utils/itemState';
+import {
     Alert,
     Badge,
     Button,
@@ -36,6 +44,10 @@ interface AuditScanResponse {
     scanned_by: number;
     scanned_code?: string | null;
     item_id?: number | null;
+    item_code?: string | null;
+    item_name?: string | null;
+    item_status?: ItemStatus | null;
+    item_condition?: ItemCondition | null;
     location_id: number;
     result: string;
     note?: string | null;
@@ -461,7 +473,10 @@ function AuditScanPage() {
                                         <tr>
                                             <th>Time</th>
                                             <th>Code</th>
+                                            <th>Item</th>
                                             <th>Result</th>
+                                            <th>Status</th>
+                                            <th>Condition</th>
                                             <th>Note</th>
                                         </tr>
                                     </thead>
@@ -471,7 +486,25 @@ function AuditScanPage() {
                                                 <td className="text-sm">{new Date(scan.scanned_at).toLocaleString()}</td>
                                                 <td className="text-sm font-mono">{scan.scanned_code || '-'}</td>
                                                 <td>
+                                                    <div className="font-semibold">{scan.item_name || '-'}</div>
+                                                    <div className="text-xs text-gray-500">{scan.item_code || '-'}</div>
+                                                </td>
+                                                <td>
                                                     <Badge variant={statusBadge(scan.result)}>{scan.result}</Badge>
+                                                </td>
+                                                <td>
+                                                    {scan.item_status ? (
+                                                        <Badge variant={getItemStatusBadge(scan.item_status)}>
+                                                            {formatItemStatus(scan.item_status)}
+                                                        </Badge>
+                                                    ) : '-'}
+                                                </td>
+                                                <td>
+                                                    {scan.item_condition ? (
+                                                        <Badge variant={getItemConditionBadge(scan.item_condition)}>
+                                                            {formatItemCondition(scan.item_condition)}
+                                                        </Badge>
+                                                    ) : '-'}
                                                 </td>
                                                 <td className="text-sm">{scan.note || '-'}</td>
                                             </tr>

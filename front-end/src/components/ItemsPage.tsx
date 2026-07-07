@@ -5,6 +5,14 @@ import { Plus, Search, Pencil, Trash2, Inbox, Download } from 'lucide-react';
 import QRCode from 'qrcode';
 import { downloadQRCodesPDF } from '../utils/qrPdfGenerators';
 import {
+    formatItemCondition,
+    formatItemStatus,
+    getItemConditionBadge,
+    getItemStatusBadge,
+    type ItemCondition,
+    type ItemStatus,
+} from '../utils/itemState';
+import {
     Button,
     Card,
     CardHeader,
@@ -32,6 +40,8 @@ interface Item {
     min_stock: number;
     image_url: string | null;
     active: number;
+    status: ItemStatus;
+    condition: ItemCondition;
     created_at: string;
     updated_at: string;
 }
@@ -217,7 +227,9 @@ function ItemsPage() {
         name: item.name,
         category: getCategoryName(item.category_id),
         owner: getUserName(item.owner_user_id),
-        status: item.active ? 'Active' : 'Inactive',
+        active: item.active ? 'Active' : 'Inactive',
+        status: formatItemStatus(item.status),
+        condition: formatItemCondition(item.condition),
     }, null, 2);
 
     const createQrDataUrl = (payload: string) => {
@@ -499,7 +511,7 @@ function ItemsPage() {
                                 </div>
                             </div>
                             <div>
-                                <label className="form-label">Status</label>
+                                <label className="form-label">Active Status</label>
                                 <select
                                     className="form-select"
                                     value={statusFilter}
@@ -547,7 +559,9 @@ function ItemsPage() {
                                             </th>
                                             <th className="text-xs uppercase tracking-wide text-gray-500">Description</th>
                                             <th className="text-center text-xs uppercase tracking-wide text-gray-500">Min Stock</th>
-                                            <th className="text-center text-xs uppercase tracking-wide text-gray-500">Status</th>
+                                            <th className="text-center text-xs uppercase tracking-wide text-gray-500">Operational Status</th>
+                                            <th className="text-center text-xs uppercase tracking-wide text-gray-500">Condition</th>
+                                            <th className="text-center text-xs uppercase tracking-wide text-gray-500">Active</th>
                                             <th className="w-24 text-center text-xs uppercase tracking-wide text-gray-500">Actions</th>
                                         </tr>
                                     </thead>
@@ -581,6 +595,16 @@ function ItemsPage() {
                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                                         {item.min_stock.toFixed(1)}
                                                     </span>
+                                                </td>
+                                                <td className="text-center">
+                                                    <Badge variant={getItemStatusBadge(item.status)}>
+                                                        {formatItemStatus(item.status)}
+                                                    </Badge>
+                                                </td>
+                                                <td className="text-center">
+                                                    <Badge variant={getItemConditionBadge(item.condition)}>
+                                                        {formatItemCondition(item.condition)}
+                                                    </Badge>
                                                 </td>
                                                 <td className="text-center">
                                                     <Badge variant={item.active ? 'success' : 'danger'}>
@@ -693,8 +717,16 @@ function ItemsPage() {
                                     {getUserName(qrPreview.item.owner_user_id)}
                                 </div>
                                 <div>
-                                    <span className="font-semibold text-gray-900">Status:</span>{' '}
+                                    <span className="font-semibold text-gray-900">Active:</span>{' '}
                                     {qrPreview.item.active ? 'Active' : 'Inactive'}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-gray-900">Operational Status:</span>{' '}
+                                    {formatItemStatus(qrPreview.item.status)}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-gray-900">Condition:</span>{' '}
+                                    {formatItemCondition(qrPreview.item.condition)}
                                 </div>
                             </div>
                         </div>
@@ -720,7 +752,23 @@ function ItemsPage() {
                                 <p className="text-blue-600 font-mono">{selectedItem.item_code}</p>
                             </div>
                             <div>
-                                <strong>Status:</strong>
+                                <strong>Operational Status:</strong>
+                                <p>
+                                    <Badge variant={getItemStatusBadge(selectedItem.status)}>
+                                        {formatItemStatus(selectedItem.status)}
+                                    </Badge>
+                                </p>
+                            </div>
+                            <div>
+                                <strong>Condition:</strong>
+                                <p>
+                                    <Badge variant={getItemConditionBadge(selectedItem.condition)}>
+                                        {formatItemCondition(selectedItem.condition)}
+                                    </Badge>
+                                </p>
+                            </div>
+                            <div>
+                                <strong>Active:</strong>
                                 <p>
                                     <Badge variant={selectedItem.active ? 'success' : 'danger'}>
                                         {selectedItem.active ? 'Active' : 'Inactive'}

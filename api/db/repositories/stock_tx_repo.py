@@ -48,6 +48,10 @@ class StockTxRepository:
                     st.note,
                     st.tx_at,
                     st.user_id,
+                    st.item_status_before,
+                    st.item_status_after,
+                    st.item_condition_before,
+                    st.item_condition_after,
                     COALESCE(u.name, '-') AS owner_name
                 FROM stock_tx st
                 LEFT JOIN items i
@@ -130,6 +134,10 @@ class StockTxRepository:
                     st.note,
                     st.tx_at,
                     st.user_id,
+                    st.item_status_before,
+                    st.item_status_after,
+                    st.item_condition_before,
+                    st.item_condition_after,
                     COALESCE(u.name, '-') AS owner_name,
                     sl.qty_on_hand
                 FROM stock_tx st
@@ -229,8 +237,12 @@ class StockTxRepository:
     def create(tx_data: Dict[str, Any]) -> int:
         try:
             query = """
-                INSERT INTO stock_tx (item_id, location_id, tx_type, qty, ref, note, user_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO stock_tx (
+                    item_id, location_id, tx_type, qty, ref, note, user_id,
+                    item_status_before, item_status_after,
+                    item_condition_before, item_condition_after
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             rows = execute(
                 query,
@@ -242,6 +254,10 @@ class StockTxRepository:
                     tx_data.get("ref"),
                     tx_data.get("note"),
                     tx_data["user_id"],
+                    tx_data.get("item_status_before"),
+                    tx_data.get("item_status_after"),
+                    tx_data.get("item_condition_before"),
+                    tx_data.get("item_condition_after"),
                 ),
             )
             if rows <= 0:
@@ -259,7 +275,18 @@ class StockTxRepository:
             set_clauses = []
             params = []
 
-            for field in ["item_id", "location_id", "tx_type", "qty", "ref", "note"]:
+            for field in [
+                "item_id",
+                "location_id",
+                "tx_type",
+                "qty",
+                "ref",
+                "note",
+                "item_status_before",
+                "item_status_after",
+                "item_condition_before",
+                "item_condition_after",
+            ]:
                 if field in tx_data:
                     set_clauses.append(f"{field} = %s")
                     params.append(tx_data[field])

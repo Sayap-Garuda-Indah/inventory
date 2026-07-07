@@ -1,7 +1,22 @@
+from enum import Enum
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from decimal import Decimal
 from datetime import datetime
+
+class ItemStatus(str, Enum):
+    IN_USE = "IN_USE"
+    MAINTENANCE = "MAINTENANCE"
+    AVAILABLE = "AVAILABLE"
+    UNAVAILABLE = "UNAVAILABLE"
+    UNSERVICEABLE = "UNSERVICEABLE"
+
+class ItemCondition(str, Enum):
+    EXCELLENT = "EXCELLENT"
+    GOOD = "GOOD"
+    FAIR = "FAIR"
+    POOR = "POOR"
+    DAMAGED = "DAMAGED"
 
 class Item(BaseModel):
     id: int = Field(..., description="The unique identifier for the item in the database")
@@ -15,6 +30,8 @@ class Item(BaseModel):
     description: str = Field(..., description="Description of the item")
     image_url: Optional[str] = Field(None, description="The URL of the item's image")
     active: bool = Field(True, description="Indicates if the item is active")
+    status: ItemStatus = Field(ItemStatus.AVAILABLE, description="Current operational status")
+    condition: ItemCondition = Field(ItemCondition.GOOD, description="Current physical condition")
 
 class ItemCreate(BaseModel):
     item_code: str = Field(..., min_length=1, max_length=20, description="The stock keeping unit for the item")
@@ -27,6 +44,8 @@ class ItemCreate(BaseModel):
     description: Optional[str] = Field(None, description="Description of the item")
     image_url: Optional[str] = Field(None, description="The URL of the item's image")
     active: Optional[bool] = Field(True, description="Indicates if the item is active")
+    status: ItemStatus = Field(ItemStatus.AVAILABLE, description="Current operational status")
+    condition: ItemCondition = Field(ItemCondition.GOOD, description="Current physical condition")
 
     @field_validator('item_code')
     @classmethod
@@ -46,6 +65,8 @@ class ItemUpdate(BaseModel):
     description: Optional[str] = None
     image_url: Optional[str] = Field(None, description="The URL of the item's image")
     active: Optional[bool] = None
+    status: Optional[ItemStatus] = Field(None, description="Current operational status")
+    condition: Optional[ItemCondition] = Field(None, description="Current physical condition")
 
     @field_validator('item_code')
     @classmethod
@@ -68,6 +89,8 @@ class ItemResponse(BaseModel):
     description: Optional[str] = None
     image_url: Optional[str] = None
     active: bool = True
+    status: ItemStatus = ItemStatus.AVAILABLE
+    condition: ItemCondition = ItemCondition.GOOD
     created_at: Optional[datetime] = None
 
     class Config:
