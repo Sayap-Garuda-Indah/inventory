@@ -39,6 +39,8 @@ CREATE TABLE items (
   description VARCHAR(500),
   image_url VARCHAR(255),
   active TINYINT(1) NOT NULL DEFAULT 1,
+  status ENUM('IN_USE','MAINTENANCE','AVAILABLE','UNAVAILABLE','UNSERVICEABLE') NOT NULL DEFAULT 'AVAILABLE',
+  `condition` ENUM('EXCELLENT','GOOD','FAIR','POOR','DAMAGED') NOT NULL DEFAULT 'GOOD',
   CONSTRAINT fk_items_category FOREIGN KEY (category_id) REFERENCES categories(id),
   CONSTRAINT fk_items_unit FOREIGN KEY (unit_id) REFERENCES units(id),
   CONSTRAINT fk_items_owner FOREIGN KEY (owner_user_id) REFERENCES users(id)
@@ -65,6 +67,10 @@ CREATE TABLE stock_tx (
   note VARCHAR(255),
   tx_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   user_id BIGINT NOT NULL,
+  item_status_before ENUM('IN_USE','MAINTENANCE','AVAILABLE','UNAVAILABLE','UNSERVICEABLE') NULL,
+  item_status_after ENUM('IN_USE','MAINTENANCE','AVAILABLE','UNAVAILABLE','UNSERVICEABLE') NULL,
+  item_condition_before ENUM('EXCELLENT','GOOD','FAIR','POOR','DAMAGED') NULL,
+  item_condition_after ENUM('EXCELLENT','GOOD','FAIR','POOR','DAMAGED') NULL,
   CONSTRAINT fk_tx_item FOREIGN KEY (item_id) REFERENCES items(id),
   CONSTRAINT fk_tx_loc FOREIGN KEY (location_id) REFERENCES locations(id),
   CONSTRAINT fk_tx_user FOREIGN KEY (user_id) REFERENCES users(id)

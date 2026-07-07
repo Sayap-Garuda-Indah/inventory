@@ -3,6 +3,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Inbox, Plus, ArrowLeftRight, Pencil, Trash2 } from 'lucide-react';
 import {
+    formatItemCondition,
+    formatItemStatus,
+    getItemConditionBadge,
+    getItemStatusBadge,
+    type ItemCondition,
+    type ItemStatus,
+} from '../utils/itemState';
+import {
     Button,
     Card,
     CardHeader,
@@ -30,6 +38,10 @@ interface Transaction {
     tx_at: string;
     user_id: number;
     owner_name?: string | null;
+    item_status_before?: ItemStatus | null;
+    item_status_after?: ItemStatus | null;
+    item_condition_before?: ItemCondition | null;
+    item_condition_after?: ItemCondition | null;
 }
 
 interface TransactionListResponse {
@@ -325,6 +337,8 @@ function TransactionsPage() {
                                             <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500 text-center">Type</th>
                                             <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500 text-right">Qty</th>
                                             <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500 text-right">On Hand</th>
+                                            <th className="hidden xl:table-cell whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Status Change</th>
+                                            <th className="hidden xl:table-cell whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Condition Change</th>
                                             <th className="hidden xl:table-cell whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Ref</th>
                                             <th className="whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Assigned to</th>
                                             <th className="hidden 2xl:table-cell whitespace-nowrap text-xs uppercase tracking-wide text-gray-500">Note</th>
@@ -368,6 +382,28 @@ function TransactionsPage() {
                                                     {tx.qty_on_hand !== null && tx.qty_on_hand !== undefined
                                                         ? Number(tx.qty_on_hand).toFixed(1)
                                                         : '-'}
+                                                </td>
+                                                <td className="hidden xl:table-cell whitespace-nowrap">
+                                                    <div className="flex items-center gap-1">
+                                                        <Badge variant={getItemStatusBadge(tx.item_status_before)}>
+                                                            {formatItemStatus(tx.item_status_before)}
+                                                        </Badge>
+                                                        <span className="text-gray-400">to</span>
+                                                        <Badge variant={getItemStatusBadge(tx.item_status_after)}>
+                                                            {formatItemStatus(tx.item_status_after)}
+                                                        </Badge>
+                                                    </div>
+                                                </td>
+                                                <td className="hidden xl:table-cell whitespace-nowrap">
+                                                    <div className="flex items-center gap-1">
+                                                        <Badge variant={getItemConditionBadge(tx.item_condition_before)}>
+                                                            {formatItemCondition(tx.item_condition_before)}
+                                                        </Badge>
+                                                        <span className="text-gray-400">to</span>
+                                                        <Badge variant={getItemConditionBadge(tx.item_condition_after)}>
+                                                            {formatItemCondition(tx.item_condition_after)}
+                                                        </Badge>
+                                                    </div>
                                                 </td>
                                                 <td className="hidden xl:table-cell max-w-[8rem]">
                                                     <span className="block truncate" title={tx.ref || '-'}>

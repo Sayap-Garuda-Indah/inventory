@@ -47,3 +47,28 @@ Verification:
 
 Follow-Up:
 - Keep this changelog updated whenever core features or deployment-relevant behavior changes.
+
+## 2026-07-07 - Item Status And Condition Added
+
+Type: Feature | Data Model | Backend | Frontend
+Branch: agent/issues-36-38-status-auth
+Related PR/Issue: #36
+
+Summary:
+- Added operational item `status` and physical `condition` fields across item create/edit/list/detail, stock transactions, and audit reconciliation.
+- Added stock transaction before/after status and condition tracking for item-state changes.
+
+User Impact:
+- Users can set item status and condition on item forms and optionally update them during stock transactions.
+- Auditors can see current item status and condition in scan history and reconciliation/report views.
+
+Technical Notes:
+- Added migration `0002_item_status_condition.sql` for existing databases and updated the baseline schema for fresh installs.
+- Defaults are `AVAILABLE` status and `GOOD` condition.
+
+Verification:
+- `cd api && $env:DEBUG='false'; ..\.venv\Scripts\python.exe -m pytest test\test_stock_service_authorization.py test\test_auth_dependencies.py`
+- `cd front-end && npm run build`
+
+Follow-Up:
+- Confirm whether status/condition changes need stricter role-specific authorization or reporting filters.

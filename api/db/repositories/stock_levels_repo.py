@@ -168,7 +168,9 @@ class StockLevelsRepository:
                         sl.qty_on_hand,
                         i.item_code,
                         i.name,
-                        i.active
+                        i.active,
+                        i.status,
+                        i.`condition`
                     FROM stock_levels sl
                     JOIN items i ON sl.item_id = i.id
                     WHERE sl.location_id = %s AND sl.qty_on_hand > 0

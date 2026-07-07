@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Alert, Badge, Button, Card, CardBody, CardHeader, Spinner } from './UI';
+import {
+    formatItemCondition,
+    formatItemStatus,
+    getItemConditionBadge,
+    getItemStatusBadge,
+    type ItemCondition,
+    type ItemStatus,
+} from '../utils/itemState';
 
 interface AuditSession {
     id: number;
@@ -28,6 +36,8 @@ interface AuditItemSummary {
     item_code: string;
     name: string;
     active: boolean | number;
+    status: ItemStatus;
+    condition: ItemCondition;
     qty_on_hand?: number | null;
     note?: string | null;
 }
@@ -52,6 +62,10 @@ interface AuditScanResponse {
     scanned_by: number;
     scanned_code?: string | null;
     item_id?: number | null;
+    item_code?: string | null;
+    item_name?: string | null;
+    item_status?: ItemStatus | null;
+    item_condition?: ItemCondition | null;
     location_id: number;
     result: string;
     note?: string | null;
@@ -271,6 +285,8 @@ function AuditReportPage() {
                                     <thead>
                                         <tr>
                                             <th>Item</th>
+                                            <th>Status</th>
+                                            <th>Condition</th>
                                             <th>Qty</th>
                                             <th>Note</th>
                                         </tr>
@@ -281,6 +297,16 @@ function AuditReportPage() {
                                                 <td>
                                                     <div className="font-semibold">{item.name}</div>
                                                     <div className="text-xs text-gray-500">{item.item_code}</div>
+                                                </td>
+                                                <td>
+                                                    <Badge variant={getItemStatusBadge(item.status)}>
+                                                        {formatItemStatus(item.status)}
+                                                    </Badge>
+                                                </td>
+                                                <td>
+                                                    <Badge variant={getItemConditionBadge(item.condition)}>
+                                                        {formatItemCondition(item.condition)}
+                                                    </Badge>
                                                 </td>
                                                 <td className="text-sm">{item.qty_on_hand ?? 0}</td>
                                                 <td className="text-sm">{item.note || '-'}</td>
@@ -306,6 +332,8 @@ function AuditReportPage() {
                                     <thead>
                                         <tr>
                                             <th>Item</th>
+                                            <th>Status</th>
+                                            <th>Condition</th>
                                             <th>Active</th>
                                             <th>Note</th>
                                         </tr>
@@ -316,6 +344,16 @@ function AuditReportPage() {
                                                 <td>
                                                     <div className="font-semibold">{item.name}</div>
                                                     <div className="text-xs text-gray-500">{item.item_code}</div>
+                                                </td>
+                                                <td>
+                                                    <Badge variant={getItemStatusBadge(item.status)}>
+                                                        {formatItemStatus(item.status)}
+                                                    </Badge>
+                                                </td>
+                                                <td>
+                                                    <Badge variant={getItemConditionBadge(item.condition)}>
+                                                        {formatItemCondition(item.condition)}
+                                                    </Badge>
                                                 </td>
                                                 <td className="text-sm">{item.active ? 'Yes' : 'No'}</td>
                                                 <td className="text-sm">{item.note || '-'}</td>

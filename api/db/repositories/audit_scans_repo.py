@@ -40,11 +40,24 @@ class AuditScansRepository:
             where_clause, params = QueryBuilder.build_where_clause(conditions, [session_id])
             
             query = f"""
-                    SELECT id, session_id, scanned_at, scanned_by, scanned_code, 
-                    item_id, location_id, result, note
-                    FROM audit_scans
+                    SELECT
+                        s.id,
+                        s.session_id,
+                        s.scanned_at,
+                        s.scanned_by,
+                        s.scanned_code,
+                        s.item_id,
+                        i.item_code,
+                        i.name AS item_name,
+                        i.status AS item_status,
+                        i.`condition` AS item_condition,
+                        s.location_id,
+                        s.result,
+                        s.note
+                    FROM audit_scans s
+                    LEFT JOIN items i ON s.item_id = i.id
                     {where_clause}
-                    ORDER BY id DESC
+                    ORDER BY s.id DESC
                     LIMIT 1
                     """
             result = fetch_one(query, tuple(params))
@@ -75,11 +88,24 @@ class AuditScansRepository:
             offset, limit = QueryBuilder.build_pagination(page, page_size)
             
             query = f"""
-                    SELECT id, session_id, scanned_at, scanned_by, scanned_code, 
-                    item_id, location_id, result, note
-                    FROM audit_scans
+                    SELECT
+                        s.id,
+                        s.session_id,
+                        s.scanned_at,
+                        s.scanned_by,
+                        s.scanned_code,
+                        s.item_id,
+                        i.item_code,
+                        i.name AS item_name,
+                        i.status AS item_status,
+                        i.`condition` AS item_condition,
+                        s.location_id,
+                        s.result,
+                        s.note
+                    FROM audit_scans s
+                    LEFT JOIN items i ON s.item_id = i.id
                     {where_clause}
-                    ORDER BY scanned_at DESC
+                    ORDER BY s.scanned_at DESC
                     LIMIT %s OFFSET %s
             """
             params.extend([limit, offset])
