@@ -71,3 +71,27 @@ Verification:
 
 Follow-Up:
 - Confirm whether status/condition changes need stricter role-specific authorization or reporting filters.
+
+## 2026-07-07 - User Directory Restricted To Admins
+
+Type: Security | Backend | Frontend
+Branch: dev
+Related PR/Issue: #39
+
+Summary:
+- Made user list/detail route dependencies explicitly require the `ADMIN` role.
+- Confirmed frontend user-management routes and sidebar visibility are admin-only.
+- Added regression coverage for staff rejection and admin access.
+
+User Impact:
+- Non-admin users cannot access the full user directory or user detail data.
+
+Technical Notes:
+- `GET /users` and `GET /users/{id}` now use `require_role(UserRole.ADMIN)` directly for the request user dependency.
+
+Verification:
+- `cd api && $env:DEBUG='false'; ..\.venv\Scripts\python.exe -m pytest test\test_users_authorization.py`
+- `cd front-end && npm run build`
+
+Follow-Up:
+- If staff identity lookup is needed later, create a separate minimal endpoint with limited fields.
