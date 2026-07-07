@@ -96,6 +96,33 @@ Verification:
 Follow-Up:
 - If staff identity lookup is needed later, create a separate minimal endpoint with limited fields.
 
+## 2026-07-07 - Public Registration Kept Disabled
+
+Type: Bugfix | Authentication | Frontend | Backend | Documentation
+Branch: dev
+Related PR/Issue: #40
+
+Summary:
+- Confirmed the frontend no longer exposes a public registration page or registration action.
+- Documented that account provisioning is admin-only.
+- Added regression coverage proving `POST /auth/register` is not available as a public endpoint.
+
+User Impact:
+- Users are no longer led toward an unsupported self-registration flow.
+- Administrators have clearer deployment and README guidance for creating staff and auditor accounts.
+
+Technical Notes:
+- User creation remains available through protected admin user-management routes.
+- No public authentication registration endpoint was added.
+
+Verification:
+- `rg -n "register|Register|/auth/register|/register|signup|signUp|createAccount" front-end/src api/app README.md DEPLOYMENT.md .agents`
+- `cd api && $env:DEBUG='false'; ..\.venv\Scripts\python.exe -m pytest test\test_auth_routes.py`
+- `cd front-end && npm run build`
+
+Follow-Up:
+- If public registration is ever desired, implement it as a separate secured feature with validation, throttling, role defaults, and onboarding rules.
+
 ## 2026-07-07 - Token Storage Hardened Away From localStorage
 
 Type: Security | Frontend | Deployment | Documentation

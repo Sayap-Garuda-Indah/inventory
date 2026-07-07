@@ -14,8 +14,8 @@ This checklist tracks the remaining work needed to make SGI Inventory ready for 
 ## Backend Features
 
 - [ ] Finish authentication and authorization hardening.
-- [ ] Restrict user directory endpoints to admin-only access.
-- [ ] Decide whether public registration is unsupported permanently or will become a future feature.
+- [x] Restrict user directory endpoints to admin-only access.
+- [x] Decide whether public registration is unsupported permanently or will become a future feature.
 - [ ] Standardize API error responses across routers.
 - [ ] Add request correlation IDs to logs and responses.
 - [ ] Review all `500` handling and convert expected validation/business failures to `400`, `401`, `403`, `404`, or `409`.

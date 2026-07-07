@@ -36,6 +36,7 @@
 
 - Email/password login returns JWT access token.
 - /auth/me returns current user profile.
+- Public self-registration is not supported; accounts are provisioned by an administrator.
 - Users CRUD (Admin-only for create/update/delete); soft delete deactivates user; self-delete blocked.
 
 ### 2.5 Search & Pagination
@@ -83,6 +84,7 @@ MySQL 8
 - JWT access tokens signed by the API (HS256) with configurable expiry.
 - Roles: ADMIN, STAFF, AUDITOR; role checks applied on mutation endpoints.
 - Account state: inactive users cannot authenticate.
+- Account provisioning is admin-only. The public frontend does not expose a sign-up page, and the backend intentionally does not provide `POST /auth/register`.
 - Token storage strategy: access tokens are no longer persisted in `localStorage`; the frontend uses `sessionStorage` and clears legacy `localStorage` token values on startup.
 - Security tradeoff: `sessionStorage` reduces persistence but remains readable by JavaScript, so the long-term target is secure `HttpOnly`, `Secure`, `SameSite` cookie-based auth with CSRF protection.
 - Production frontend hardening includes CSP, frame, content-type, referrer, and permissions headers in `front-end/nginx.conf`.
@@ -317,7 +319,7 @@ CREATE INDEX idx_audit_scans_item ON audit_scans(item_id);
 ## 8) API Design (current)
 
 - Auth: `POST /auth/login`, `GET /auth/me`
-- Users: `GET /users`, `GET /users/{id}`, `POST /users/register`, `POST /users/bulk-register`, `PUT /users/{id}`, `DELETE /users/{id}`, `PATCH /users/{id}/activate`
+- Users: `GET /users`, `GET /users/{id}`, `POST /users`, `POST /users/register` (admin-only compatibility alias), `POST /users/bulk-register`, `PUT /users/{id}`, `DELETE /users/{id}`, `PATCH /users/{id}/activate`
 - Items: `GET /items`, `GET /items/{id}`, `POST /items`, `PUT /items/{id}`, `DELETE /items/{id}` (soft delete)
 - Categories: `GET /categories`, `GET /categories/{id}`, `POST /categories`, `PUT /categories/{id}`, `DELETE /categories/{id}`
 - Units: `GET /units`, `GET /units/{id}`, `POST /units`, `PUT /units/{id}`, `DELETE /units/{id}`
@@ -333,6 +335,7 @@ CREATE INDEX idx_audit_scans_item ON audit_scans(item_id);
 
 - `Authorization: Bearer <access_token>` required for protected endpoints.
 - Role guard: Admin required for user management, unit mutations, settings, and delete operations for items, categories, and issues; staff can manage items, categories, issues, and issue items.
+- New users are created by admins through protected user-management routes; clients must not call or link to `/auth/register`.
 
 ---
 

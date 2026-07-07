@@ -122,6 +122,8 @@ Untuk re-run manual bila diperlukan:
 docker compose exec api python scripts/create_admin.py
 ```
 
+Public self-registration is not supported. After the initial admin account exists, create staff and auditor accounts from the protected Users page or the admin-only user-management API routes.
+
 ## 9) Verify
 
 - Frontend: `http://sgi-inventory.local/`

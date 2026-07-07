@@ -4,17 +4,14 @@ Use this template when asking an agent to implement one GitHub issue from the bl
 
 ```markdown
 # Task
-
 Implement GitHub issue `<ISSUE_NUMBER>`: `<ISSUE_TITLE>`.
 
 Issue URL: `<ISSUE_URL>`
 
 ## Goal
-
 Complete the issue end-to-end in this repository while keeping the change scoped, tested, and ready for review.
 
 ## Required Context
-
 - Read the full GitHub issue body, labels, acceptance criteria, implementation sequence, dependencies, and related issues.
 - Read `.agents/AGENTS.md`.
 - Read `.agents/BLUEPRINT_UPDATE_CHECKLIST.md`.
@@ -22,23 +19,20 @@ Complete the issue end-to-end in this repository while keeping the change scoped
 - For security, authentication, authorization, data model, or deployment changes, inspect related existing code and documentation before editing.
 
 ## Scope
-
 Implement only the behavior required by this issue.
 
 In scope:
-
+- `<LIST_EXPLICIT_FILES_OR_AREAS_IF_KNOWN>`
 - Tests or verification needed for the acceptance criteria.
 - Documentation or blueprint updates only when the implementation changes behavior, deployment assumptions, or readiness status.
 
 Out of scope:
-
 - Unrelated refactors.
 - Cosmetic changes unrelated to the issue.
 - Reverting existing user work.
 - Adding unsupported product behavior not requested by the issue.
 
 ## Implementation Rules
-
 - Start by checking `git status --short --branch`.
 - Search with `rg` before changing code.
 - Follow the existing backend/frontend patterns in this repository.
@@ -51,14 +45,12 @@ Out of scope:
 - Update `.agents/BLUEPRINT_UPDATE_CHECKLIST.md` only if this issue changes readiness assumptions or completes a checklist item.
 
 ## Expected Deliverables
-
 - Code changes implementing the issue.
 - Tests or clear manual verification steps.
 - Any required docs or blueprint updates.
 - A concise final summary with changed areas and verification results.
 
 ## Suggested Workflow
-
 1. Confirm current branch and working tree status.
 2. Read the GitHub issue and related blueprint section.
 3. Inspect the affected code paths.
@@ -70,9 +62,7 @@ Out of scope:
 9. Summarize what changed, what was verified, and any remaining risk.
 
 ## Verification Expectations
-
 Run the most relevant commands for the changed area:
-
 - Backend: `<BACKEND_TEST_COMMAND_OR_N/A>`
 - Frontend: `<FRONTEND_BUILD_OR_TEST_COMMAND_OR_N/A>`
 - Database/migrations: `<MIGRATION_VERIFICATION_OR_N/A>`
@@ -81,9 +71,7 @@ Run the most relevant commands for the changed area:
 If a verification command cannot be run, explain why and describe the remaining risk.
 
 ## Completion Criteria
-
 The issue is complete only when:
-
 - All acceptance criteria are satisfied.
 - The implementation is scoped to this issue.
 - Relevant tests or verification steps pass.
@@ -99,7 +87,6 @@ Use this shorter prompt after implementation if the user asks for a commit and P
 Commit the completed implementation for GitHub issue `<ISSUE_NUMBER>` and create a pull request.
 
 Before committing:
-
 - Show `git status --short --branch`.
 - Review the diff for unrelated changes.
 - Use a focused commit message referencing the issue.
